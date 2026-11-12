@@ -20,21 +20,7 @@
 
 ## How it works
 
-```
-             +-------------------- nexus_reconfig_top ----------------------+
-             |                                                              |
-             |  osc0 (OSC IP)          reconfig_core               CONFIG_LMMI
-             |  hf_clk_out_o --+--> sys_clk ------------+          (LMMI_EN="EN")
-             |  lmmi_clk_i  <--+                        |                   |
-             |  lmmi_clk_o  ------------------------------------> LMMICLK   |
-             |  lmmi_resetn_o ----------------------------------> LMMIRESETN|
-             |  lmmi_resetn_i <-- rst_n (power-on reset)|                   |
-             |                         lmmi_refresh --- LMMI write port --> |
-  btn_ni ----+-> sync/debounce --+                      |                   |
-             |   auto timer -----+--> sequencer --> uart_tx ---------------------> txd_o
-             |                        LED logic ---------------------------------> led_o[1:0]
-             +--------------------------------------------------------------+
-```
+![NexusReconfig block diagram](docs/block_diagram.svg)
 
 1. After configuration a power-on counter releases the logic. The UART prints
    `NexusReconfig: FPGA configured`, `led_o[0]` lights for 2 s (a fresh-configuration indicator)
@@ -89,7 +75,7 @@ needed to select an alternate image.
 | `sim/sim_filelist.f` | Simulation file list |
 | `sim/lint_top_filelist.f` | File list for the elaborate-only check of the full top level |
 | `scripts/create_project.tcl` | Re-creates the Radiant project |
-| `docs/` | FPGA-TN-02099 (sysCONFIG) and FPGA-TN-02145 (Multi-Boot) user guides |
+| `docs/` | FPGA-TN-02099 (sysCONFIG) and FPGA-TN-02145 (Multi-Boot) user guides, block diagram (`block_diagram.svg`) |
 
 ### Ports and pins
 
