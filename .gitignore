@@ -1,0 +1,29 @@
+# Claude Code local files (never committed)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Radiant build outputs and working files
+lscc/impl_*/
+lscc/.radiant_builds/
+lscc/*_stages_*.tcl
+lscc/*_build_*.log
+lscc/radiantc.log.*
+lscc/radiantc.tcl.*
+lscc/*.html
+lscc/*.xml
+lscc/.setting.ini
+lscc/.ng_run_manager.ini
+lscc/*_tcr.dir/
+lscc/*.log
+scripts/radiantc.log.*
+scripts/radiantc.tcl.*
+scripts/*_build_*.log
+scripts/.radiant_builds/
+
+# Simulation working directories
+sim/mcp_sim/
+*.wlf
+qrun.out/
+transcript
+lscc/promote.pfl

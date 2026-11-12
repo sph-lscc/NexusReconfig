@@ -1,0 +1,29 @@
+# -----------------------------------------------------------------------------
+# NexusReconfig - post-synthesis constraints (read by map, PAR and timing analysis)
+# Target: LFD2NX-40-8BG196C on the CRUVI Certus-NX board.
+# Pin locations taken from the CRUVI board design
+# (/mnt/lscc/devel/Boards/CertusNX/cruvi/CruviDemo/test_certus/test_certus.pdc).
+# -----------------------------------------------------------------------------
+
+# System clock: internal oscillator osc0, 450 MHz / 18 = 25 MHz, declared on the
+# OSCA driver pin. After synthesis the primitive is named ...gen_osca.u_OSC_A.OSCA_inst
+# (see the map report); the RTL path .../gen_osca.u_OSC_A/HFCLKOUT does not resolve here.
+create_clock -name {sys_clk} -period 40 [get_pins {osc0_inst/lscc_osc_inst/gen_osca.u_OSC_A.OSCA_inst/HFCLKOUT}]
+generate_uncertainty
+
+# B2 is the INITN sysCONFIG pin. Release it for user I/O after configuration,
+# as the CRUVI board design does (the CRUVI demo uses B2 as rstn_i).
+ldc_set_sysconfig {INITN_PORT=DISABLE}
+
+# Pins
+ldc_set_location -site {A8}  [get_ports {led_o[0]}]
+ldc_set_location -site {B8}  [get_ports {led_o[1]}]
+ldc_set_location -site {B2}  [get_ports btn_ni]
+ldc_set_location -site {F11} [get_ports txd_o]
+ldc_set_port -iobuf {PULLMODE=UP} [get_ports btn_ni]
+
+# Asynchronous I/O: the button goes through a two-stage synchroniser; the LEDs
+# and the UART line have no timing relationship to an external clock.
+set_false_path -from [get_ports btn_ni]
+set_false_path -to   [get_ports {led_o[*]}]
+set_false_path -to   [get_ports txd_o]
