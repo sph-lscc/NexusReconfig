@@ -5,7 +5,7 @@
 | Device | Certus-NX LFD2NX-40-8BG196C |
 | Board | CRUVI Certus-NX board |
 | Software | Radiant 2026.1.1 (Synplify Pro), Questa (bundled with Radiant) |
-| HDL | VHDL-2008 (branch `vhdl-2008`); testbenches SystemVerilog; OSC IP Verilog |
+| HDL | VHDL-2008 (branch `vhdl-2008`), including the main testbench; `tb_equiv` SystemVerilog; OSC IP Verilog |
 | IP | osc 1.4.0 (`lscc/osc0`) |
 
 ## Notes
@@ -77,7 +77,7 @@ needed to select an alternate image.
 | `lscc/nexus_reconfig.rdf` | Radiant project, implementation `impl_1` |
 | `constraints/nexus_reconfig.pdc` | Clock, pins, INITN release, false paths (post-synthesis) |
 | `constraints/nexus_reconfig.sdc` | Clock for synthesis |
-| `tb/tb_reconfig_core.sv` | Self-checking testbench with an LMMI target model and UART monitors (ports only, runs against VHDL or SystemVerilog) |
+| `tb/tb_reconfig_core.vhd` | Self-checking VHDL-2008 testbench with an LMMI target model and UART monitors (ports only, component binding: runs against the VHDL design or the SystemVerilog original) |
 | `tb/tb_equiv.sv` | Lock-step equivalence testbench: VHDL against the SystemVerilog original |
 | `sim/sim_filelist.f` | Simulation file list, VHDL design with `tb_reconfig_core` |
 | `sim/sim_svref_filelist.f` | `tb_reconfig_core` with the SystemVerilog original |
@@ -86,6 +86,7 @@ needed to select an alternate image.
 | `sim/run_vhdl.do` | Questa run script for the VHDL simulations |
 | `scripts/create_project.tcl` | Re-creates the Radiant project (VHDL-2008 enabled for Synplify Pro and LSE) |
 | `scripts/make_sv_ref.sh` | Extracts the SystemVerilog original from git into `sim/mcp_sim/sv_ref/` |
+| `scripts/make_tb_check.sh` | Prepares the fault-injection check of the testbench conversion in `sim/mcp_sim/tb_check/` |
 | `docs/` | FPGA-TN-02099 (sysCONFIG) and FPGA-TN-02145 (Multi-Boot) user guides, block diagram (`block_diagram.svg`) |
 
 ### Ports and pins
@@ -137,8 +138,13 @@ MCP server.
    `sim_filelist=<project>/sim/equiv_filelist.f`, `top=tb_equiv` and its own `work_dir`/`sim_dir`
    (`sim/mcp_sim/equiv`). Pass criterion: `TEST PASSED: VHDL-2008 conversion matches ...`.
 7. **Same testbench on the SystemVerilog original:** as step 5 with
-   `sim_filelist=<project>/sim/sim_svref_filelist.f` (`sim/mcp_sim/svref`).
-8. **Full top-level elaboration** (with the OSCA, CONFIG_CLKRST_CORE and CONFIG_LMMI library
+   `sim_filelist=<project>/sim/sim_svref_filelist.f` (`sim/mcp_sim/svref`). The file list passes
+   `-t 1ps` to `vsim` because the VHDL top level instantiates Verilog modules.
+8. **Fault-injection check of the testbench conversion:** run `scripts/make_tb_check.sh`, then
+   for each `sim/mcp_sim/tb_check/<m>_vhdtb.f` and `<m>_svtb.f` run as step 5 with that file list
+   and its own `work_dir`/`sim_dir` (for example `sim/mcp_sim/tb_check/run_<m>_<tb>`, no
+   `libdirs`). See "Testbench conversion" for the expected results.
+9. **Full top-level elaboration** (with the OSCA, CONFIG_CLKRST_CORE and CONFIG_LMMI library
    cells): as step 5 with `sim_filelist=<project>/sim/lint_top_filelist.f`,
    `top=nexus_reconfig_top`, `sim_dir=<project>/sim/mcp_sim/lint/system_sim` and
    `elaborate_only=true`. The file list passes `-t 1ps` to `vsim`: with a VHDL top level the
@@ -154,9 +160,10 @@ Warnings after time 0 are still reported.
 
 | Check | Result |
 | :-- | :-- |
-| RTL simulation, VHDL (`tb_reconfig_core`) | `TEST PASSED`, 12 checks, 0 errors, 0 warnings |
+| RTL simulation, VHDL design, VHDL testbench (`tb_reconfig_core`) | `TEST PASSED`, 12 checks, 0 errors, 0 warnings |
 | Equivalence with the SystemVerilog original (`tb_equiv`) | `TEST PASSED`: 4 parameter sets, about 300 000 cycles each, 0 output mismatches, 0 warnings |
-| Same testbench on the SystemVerilog original | `TEST PASSED`, 0 errors, 0 warnings |
+| Same VHDL testbench on the SystemVerilog original | `TEST PASSED`, 0 errors, 0 warnings |
+| Fault injection: VHDL and SystemVerilog testbench on 4 mutants | Identical results on every mutant (see "Testbench conversion") |
 | Elaborate-only, full top level with device library cells | 0 errors, 2 warnings, both `vopt-2958 Implicit wire '<protected>'` from inside the encrypted Lattice library cells |
 | Timing (`validate_timing`) | Met at all corners: 0 failing endpoints, constraint coverage 100 % |
 | Worst setup slack, `sys_clk` 25 MHz | +36.072 ns (85 °C), so the logic Fmax is about 254 MHz |
@@ -168,6 +175,33 @@ Warnings after time 0 are still reported.
 The SystemVerilog original (`main`, commit `41439d8`) gave 216 LUT4, 123 registers, 2 EBR,
 setup slack +35.901 ns and hold slack +0.155 ns. The differences come from synthesis packing the
 two message ROMs differently, not from a change in function.
+
+### Testbench conversion
+
+`tb/tb_reconfig_core.vhd` replaces the SystemVerilog `tb_reconfig_core.sv` (last version in commit
+`358c619`). It has the same three DUT instances, stimulus, LMMI target model, UART monitors, the
+same 12 final checks and the same checks during the run. Differences:
+
+- The LMMI back-pressure uses `ieee.math_real.uniform` instead of `$urandom`, so the ready pattern,
+  and with it the time of each LMMI byte, differs from the SystemVerilog run. The event log times
+  of the UART messages differ by up to 2 us because the VHDL monitor reports through signals.
+- The DUT is bound through a component declaration, so the same testbench runs against the VHDL
+  entity and the SystemVerilog module.
+
+Fault injection (`scripts/make_tb_check.sh`): each mutant is a copy of `src/*.vhd` with one fault.
+Both testbenches were run on every mutant (2026-11-13):
+
+| Mutant | Fault | VHDL testbench | SystemVerilog testbench |
+| :-- | :-- | :-- | :-- |
+| `m1_opcode` | Opcode `0x78` instead of `0x79` | FAILED, 2 errors (A, B: `LSC_REFRESH 79 00 00 00 written`) | Same 2 errors |
+| `m2_offset` | LMMI offset `0x02` instead of `0x01` | FAILED, 8 errors (offset error on every byte) | Same 8 errors |
+| `m3_nodrain` | Refresh starts without waiting for the last UART character | PASSED (not detected) | PASSED (not detected) |
+| `m4_bootled` | Boot LED never on | FAILED, 1 error (A: `boot LED not on at 1 ms`) | Same 1 error |
+
+`m3_nodrain` is a coverage gap of the original testbench, not of the conversion: with about one
+cycle in three of `LMMIREADY` low, `lmmi_refresh` needs about 2 ms to see 16 consecutive ready
+cycles, so the last character (200 us at 50 kbaud) has always left the UART before the first LMMI
+request, and the check "LMMI request before the UART message completed" cannot fire.
 
 ### VHDL-2008 conversion
 
@@ -258,6 +292,9 @@ flash holds:
 
 ## Open items
 
+- Testbench coverage gap: a missing UART drain before the refresh is not detected
+  (`m3_nodrain`, see "Testbench conversion"). An instance with `LMMIREADY` always high would
+  expose it.
 - Hardware test not yet done.
 - LED polarity on the CRUVI board is not confirmed (`LED_ACTIVE_LOW`, default 0).
 - Whether B2 is connected to a push button on the CRUVI board is not confirmed (the CRUVI demo

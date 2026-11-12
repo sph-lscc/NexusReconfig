@@ -4,4 +4,4 @@
 /mnt/lscc/devel/Claude/NexusReconfig/src/uart_tx.vhd
 /mnt/lscc/devel/Claude/NexusReconfig/src/lmmi_refresh.vhd
 /mnt/lscc/devel/Claude/NexusReconfig/src/reconfig_core.vhd
-/mnt/lscc/devel/Claude/NexusReconfig/tb/tb_reconfig_core.sv
+/mnt/lscc/devel/Claude/NexusReconfig/tb/tb_reconfig_core.vhd
