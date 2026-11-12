@@ -16,7 +16,9 @@ prj_create -name nexus_reconfig -dir $PRJ -impl impl_1 \
 prj_set_impl_opt -impl impl_1 top nexus_reconfig_top
 prj_set_impl_opt -impl impl_1 VerilogStandard "System Verilog"
 
-foreach f {src/uart_tx.sv src/lmmi_refresh.sv src/reconfig_core.sv src/nexus_reconfig_top.sv} {
+# VHDL-2008 sources, in compile order. The OSC IP stays Verilog (mixed language).
+prj_set_strategy_value -strategy Strategy1 syn_vhdl2008=True lse_vhdl2008=True
+foreach f {src/nexus_reconfig_pkg.vhd src/uart_tx.vhd src/lmmi_refresh.vhd src/reconfig_core.vhd src/nexus_reconfig_top.vhd} {
     prj_add_source [file join $ROOT $f]
 }
 prj_add_source [file join $PRJ osc0 osc0.ipx]

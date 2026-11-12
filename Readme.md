@@ -5,6 +5,7 @@
 | Device | Certus-NX LFD2NX-40-8BG196C |
 | Board | CRUVI Certus-NX board |
 | Software | Radiant 2026.1.1 (Synplify Pro), Questa (bundled with Radiant) |
+| HDL | VHDL-2008 (branch `vhdl-2008`); testbenches SystemVerilog; OSC IP Verilog |
 | IP | osc 1.4.0 (`lscc/osc0`) |
 
 ## Notes
@@ -17,6 +18,10 @@
   Certus-NX is the external SPI flash.
 - The reconfiguration therefore loads **whatever image is in the SPI flash**. To see this design
   restart itself, its bitstream must be in the flash (see "Running on the board").
+
+- This branch (`vhdl-2008`) holds the design converted to VHDL-2008. The SystemVerilog original
+  is on `main` (last SystemVerilog commit `41439d8`). The conversion is checked against the
+  original cycle by cycle in simulation (see "VHDL-2008 conversion").
 
 ## How it works
 
@@ -63,18 +68,24 @@ needed to select an alternate image.
 
 | Path | Content |
 | :-- | :-- |
-| `src/nexus_reconfig_top.sv` | Top level: OSC IP, `CONFIG_LMMI` primitive, `reconfig_core` |
-| `src/reconfig_core.sv` | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
-| `src/lmmi_refresh.sv` | LMMI host that writes `LSC_REFRESH` |
-| `src/uart_tx.sv` | UART transmitter, 8N1 |
+| `src/nexus_reconfig_top.vhd` | Top level: OSC IP, `CONFIG_LMMI` primitive, `reconfig_core` |
+| `src/reconfig_core.vhd` | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
+| `src/lmmi_refresh.vhd` | LMMI host that writes `LSC_REFRESH` |
+| `src/uart_tx.vhd` | UART transmitter, 8N1 |
+| `src/nexus_reconfig_pkg.vhd` | `clog2` and string-to-ROM helper functions |
 | `lscc/osc0/` | Generated OSC IP (25 MHz HF clock, LMMI clock path enabled) |
 | `lscc/nexus_reconfig.rdf` | Radiant project, implementation `impl_1` |
 | `constraints/nexus_reconfig.pdc` | Clock, pins, INITN release, false paths (post-synthesis) |
 | `constraints/nexus_reconfig.sdc` | Clock for synthesis |
-| `tb/tb_reconfig_core.sv` | Self-checking testbench with an LMMI target model and UART monitors |
-| `sim/sim_filelist.f` | Simulation file list |
+| `tb/tb_reconfig_core.sv` | Self-checking testbench with an LMMI target model and UART monitors (ports only, runs against VHDL or SystemVerilog) |
+| `tb/tb_equiv.sv` | Lock-step equivalence testbench: VHDL against the SystemVerilog original |
+| `sim/sim_filelist.f` | Simulation file list, VHDL design with `tb_reconfig_core` |
+| `sim/sim_svref_filelist.f` | `tb_reconfig_core` with the SystemVerilog original |
+| `sim/equiv_filelist.f` | `tb_equiv` with both implementations |
 | `sim/lint_top_filelist.f` | File list for the elaborate-only check of the full top level |
-| `scripts/create_project.tcl` | Re-creates the Radiant project |
+| `sim/run_vhdl.do` | Questa run script for the VHDL simulations |
+| `scripts/create_project.tcl` | Re-creates the Radiant project (VHDL-2008 enabled for Synplify Pro and LSE) |
+| `scripts/make_sv_ref.sh` | Extracts the SystemVerilog original from git into `sim/mcp_sim/sv_ref/` |
 | `docs/` | FPGA-TN-02099 (sysCONFIG) and FPGA-TN-02145 (Multi-Boot) user guides, block diagram (`block_diagram.svg`) |
 
 ### Ports and pins
@@ -96,7 +107,7 @@ sysCONFIG pin; like the CRUVI design, the `.pdc` releases it with
 | Parameter | Default | Meaning |
 | :-- | :-- | :-- |
 | `AUTO_REFRESH_MS` | 10000 | Auto-refresh delay after the banner; 0 = button only |
-| `LED_ACTIVE_LOW` | 0 | Set to 1 if the board LEDs light on a low level |
+| `LED_ACTIVE_LOW` | `false` | Set to `true` if the board LEDs light on a low level (VHDL `boolean`) |
 
 ## Reproducing the results
 
@@ -114,27 +125,81 @@ MCP server.
 3. **Build:** `radiant_build_detached(rdf_path=<project>/lscc/nexus_reconfig.rdf, impl=impl_1)`,
    `radiant_build_wait`, then `validate_timing(project_path=<project>/lscc)`. The bitstream is
    `lscc/impl_1/nexus_reconfig_impl_1.bit`.
-4. **RTL simulation:**
-   `simulate_rtl_detached(work_dir=<project>/sim/mcp_sim, sim_dir=<project>/sim/mcp_sim/system_sim,
+4. **SystemVerilog reference** (needed for steps 6 and 7): run `scripts/make_sv_ref.sh` in WSL
+   or on `lb`. It writes the original sources of commit `41439d8` to `sim/mcp_sim/sv_ref/`.
+5. **RTL simulation of the VHDL design:**
+   `simulate_rtl_detached(work_dir=<project>/sim/mcp_sim/vhdl, sim_dir=<project>/sim/mcp_sim/vhdl/system_sim,
    device=LFD2NX-40-8BG196C, sim_filelist=<project>/sim/sim_filelist.f, top=tb_reconfig_core,
    libdirs=[/mnt/tools/lscc/radiant/2026.1.1/cae_library/simulation/verilog/uaplatform],
    skip_validate=true, clean=true)`, then `simulate_rtl_wait`. Pass criterion: `TEST PASSED` in
-   `sim/mcp_sim/system_sim/sim.log`.
-5. **Full top-level elaboration** (with the OSCA, CONFIG_CLKRST_CORE and CONFIG_LMMI library
-   cells): as step 4 with `sim_filelist=<project>/sim/lint_top_filelist.f`,
-   `top=nexus_reconfig_top`, `sim_dir=<project>/sim/mcp_sim/lint_top` and `elaborate_only=true`.
+   `sim.log`.
+6. **Equivalence with the SystemVerilog original:** as step 5 with
+   `sim_filelist=<project>/sim/equiv_filelist.f`, `top=tb_equiv` and its own `work_dir`/`sim_dir`
+   (`sim/mcp_sim/equiv`). Pass criterion: `TEST PASSED: VHDL-2008 conversion matches ...`.
+7. **Same testbench on the SystemVerilog original:** as step 5 with
+   `sim_filelist=<project>/sim/sim_svref_filelist.f` (`sim/mcp_sim/svref`).
+8. **Full top-level elaboration** (with the OSCA, CONFIG_CLKRST_CORE and CONFIG_LMMI library
+   cells): as step 5 with `sim_filelist=<project>/sim/lint_top_filelist.f`,
+   `top=nexus_reconfig_top`, `sim_dir=<project>/sim/mcp_sim/lint/system_sim` and
+   `elaborate_only=true`. The file list passes `-t 1ps` to `vsim`: with a VHDL top level the
+   default resolution is 1 ns, and the Lattice Verilog cells need 1 ps (`vsim-3693`).
 
-## Verification results (2026-11-12, Radiant 2026.1.1)
+The VHDL file lists compile with `-vcom.options -2008 -end` and run `sim/run_vhdl.do`. That
+script suppresses numeric_std metavalue warnings for the time-0 delta cycles only: registers
+without a reset value are `'U'` until the power-on reset clears them (X in the SystemVerilog
+original), and numeric_std reports this once when the concurrent statements are first evaluated.
+Warnings after time 0 are still reported.
+
+## Verification results (2026-11-12, Radiant 2026.1.1, VHDL-2008)
 
 | Check | Result |
 | :-- | :-- |
-| RTL simulation (`tb_reconfig_core`) | `TEST PASSED`, 12 checks, 0 errors, 0 warnings |
+| RTL simulation, VHDL (`tb_reconfig_core`) | `TEST PASSED`, 12 checks, 0 errors, 0 warnings |
+| Equivalence with the SystemVerilog original (`tb_equiv`) | `TEST PASSED`: 4 parameter sets, about 300 000 cycles each, 0 output mismatches, 0 warnings |
+| Same testbench on the SystemVerilog original | `TEST PASSED`, 0 errors, 0 warnings |
 | Elaborate-only, full top level with device library cells | 0 errors, 2 warnings, both `vopt-2958 Implicit wire '<protected>'` from inside the encrypted Lattice library cells |
 | Timing (`validate_timing`) | Met at all corners: 0 failing endpoints, constraint coverage 100 % |
-| Worst setup slack, `sys_clk` 25 MHz | +35.901 ns (85 °C), so the logic Fmax is about 244 MHz |
-| Worst hold slack | +0.155 ns |
-| Resources | 216 LUT4, 123 registers, 2 EBR (message ROM), 1 OSC, 1 CONFIG_LMMI, 4 I/O |
+| Worst setup slack, `sys_clk` 25 MHz | +36.072 ns (85 °C), so the logic Fmax is about 254 MHz |
+| Worst hold slack | +0.190 ns |
+| Resources | 211 LUT4, 123 registers, 1 EBR (message ROM), 1 OSC, 1 CONFIG_LMMI, 4 I/O |
+| `CONFIG_LMMI` in the synthesised netlist | Same connections as the SystemVerilog build (`RSTSMCLK`, `SMCLK` tied to GND by synthesis in both) |
 | Hardware | **Not yet tested on the board** |
+
+The SystemVerilog original (`main`, commit `41439d8`) gave 216 LUT4, 123 registers, 2 EBR,
+setup slack +35.901 ns and hold slack +0.155 ns. The differences come from synthesis packing the
+two message ROMs differently, not from a change in function.
+
+### VHDL-2008 conversion
+
+- One VHDL entity per SystemVerilog module, with the same names, generics and ports. The
+  generics are `positive`/`natural`, apart from `LED_ACTIVE_LOW` (`boolean`). The ports are
+  `std_logic` / `std_logic_vector`. The SystemVerilog `$clog2` and the packed message strings are
+  replaced by `clog2` and `to_rom` in `nexus_reconfig_pkg`.
+- `nexus_reconfig_top.vhd` declares the OSC IP (Verilog, mixed-language) and `CONFIG_LMMI` as
+  components. The `CONFIG_LMMI` declaration is copied from the Radiant library
+  (`cae_library/synthesis/vhdl/lfd2nx.vhd`). A local declaration is used because the
+  precompiled Questa library `lfd2nx` holds only the Verilog cells, not a VHDL `components`
+  package.
+- `tb_equiv` runs the original SystemVerilog modules (renamed `ref_*`) and the VHDL entities
+  side by side with identical stimulus. It compares `rst_no` from time 0 and all outputs
+  (`led_o`, `txd_o`, `lmmi_*`, `refresh_done_o`) on every clock from the release of the
+  power-on reset. Before that release the SystemVerilog registers are X and the VHDL
+  enumerated state registers start at their leftmost value; on the device every register is
+  cleared at configuration. The parameter sets are:
+  - **P0:** auto-refresh timer, button released, random `LMMIREADY` back-pressure.
+  - **P1:** button only, active-low LEDs. The input is stuck low at start, then:
+    - bouncing release;
+    - a 1 ms glitch shorter than the debounce time;
+    - bouncing press.
+  - **P2:** button stuck low, timer disabled. No `LMMI` transfer is allowed, and none occurs.
+  - **P3:** 115200 baud at 1 MHz (divider 9), LMMI gap 4, random button noise, long
+    `LMMIREADY` stretches.
+
+  The test also fails if the stimulus did not exercise all of the following:
+  - the refresh;
+  - the four LMMI bytes;
+  - UART output;
+  - the boot, failure and heartbeat LED patterns.
 
 What the testbench covers, with three DUT instances on a scaled clock (1 MHz, 50 kbaud):
 
@@ -164,7 +229,13 @@ What it does not cover:
   replaced by the project's `sys_clk`.
 - A clock `osc0_inst/lscc_osc_inst/sed_sec_out_w` (225 MHz on `HFSDCOUT`) appears in the timing
   report. It is derived from the OSC IP and has no paths.
-- `Input RSTSMCLK/SMCLK ... undriven`: hardware-inferred pins of `CONFIG_LMMI`, left unconnected
+- `Unbound component CONFIG_LMMI of instance config_lmmi_inst` (Synplify Z198): the VHDL top level
+  declares the primitive as a component; Synplify maps it to the `CONFIG_LMMI` library cell,
+  as the netlist (`LMMI_EN = "EN"`) and the map report (Config LMMI 1/1) show.
+- `User-specified initial value defined for some sequential elements` (FX474): the power-on reset
+  counter and `rst_n` start from their configuration-time value of 0, as intended.
+- `Input rstsmclk/smclk of instance config_lmmi_inst is floating` (CL167) and
+  `Input RSTSMCLK/SMCLK ... undriven`: hardware-inferred pins of `CONFIG_LMMI`, left unconnected
   as in FPGA-RD-02294 and in the FPGA-TN-02099 example.
 - `Blackbox OSCA / CONFIG_CLKRST_CORE / CONFIG_LMMI is missing a user supplied timing model`
   (synthesis only); place and route and timing analysis use the device models.

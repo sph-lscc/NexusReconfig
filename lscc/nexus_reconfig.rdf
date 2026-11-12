@@ -3,17 +3,20 @@
     <Options/>
     <Implementation title="impl_1" dir="impl_1" description="impl_1" synthesis="synplify" default_strategy="Strategy1">
         <Options VerilogStandard="System Verilog" top="nexus_reconfig_top"/>
-        <Source name="../src/uart_tx.sv" type="Verilog" type_short="Verilog">
-            <Options VerilogStandard="System Verilog"/>
+        <Source name="../src/nexus_reconfig_pkg.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
         </Source>
-        <Source name="../src/lmmi_refresh.sv" type="Verilog" type_short="Verilog">
-            <Options VerilogStandard="System Verilog"/>
+        <Source name="../src/uart_tx.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
         </Source>
-        <Source name="../src/reconfig_core.sv" type="Verilog" type_short="Verilog">
-            <Options VerilogStandard="System Verilog"/>
+        <Source name="../src/lmmi_refresh.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
         </Source>
-        <Source name="../src/nexus_reconfig_top.sv" type="Verilog" type_short="Verilog">
-            <Options VerilogStandard="System Verilog"/>
+        <Source name="../src/reconfig_core.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../src/nexus_reconfig_top.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
         </Source>
         <Source name="osc0/osc0.ipx" type="IPX_Module" type_short="IPX">
             <Options/>
