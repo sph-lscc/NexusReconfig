@@ -5,7 +5,7 @@
 | Device | Certus-NX LFD2NX-40-8BG196C |
 | Board | CRUVI Certus-NX board |
 | Software | Radiant 2026.1.1 (Synplify Pro), Questa (bundled with Radiant) |
-| HDL | VHDL-2008 (branch `vhdl-2008`), including the main testbench; `tb_equiv` SystemVerilog; OSC IP Verilog |
+| HDL | Two equivalent implementations: SystemVerilog (`src/sv/`) and VHDL-2008 (`src/vhdl/`); testbenches in both languages; OSC IP Verilog |
 | IP | osc 1.4.0 (`lscc/osc0`) |
 
 ## Notes
@@ -19,9 +19,12 @@
 - The reconfiguration therefore loads **whatever image is in the SPI flash**. To see this design
   restart itself, its bitstream must be in the flash (see "Running on the board").
 
-- This branch (`vhdl-2008`) holds the design converted to VHDL-2008. The SystemVerilog original
-  is on `main` (last SystemVerilog commit `41439d8`). The conversion is checked against the
-  original cycle by cycle in simulation (see "VHDL-2008 conversion").
+- The design exists in two languages, kept side by side on one branch: SystemVerilog in
+  `src/sv/` and VHDL-2008 in `src/vhdl/`. One Radiant project builds either of them: the
+  implementation `impl_sv` (project default) or `impl_vhdl`. Both share the device settings,
+  strategy, oscillator IP and constraints. The two implementations are checked against each
+  other cycle by cycle in simulation (see "VHDL-2008 implementation"), and both were tested on
+  the board.
 
 ## How it works
 
@@ -68,25 +71,31 @@ needed to select an alternate image.
 
 | Path | Content |
 | :-- | :-- |
-| `src/nexus_reconfig_top.vhd` | Top level: OSC IP, `CONFIG_LMMI` primitive, `reconfig_core` |
-| `src/reconfig_core.vhd` | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
-| `src/lmmi_refresh.vhd` | LMMI host that writes `LSC_REFRESH` |
-| `src/uart_tx.vhd` | UART transmitter, 8N1 |
-| `src/nexus_reconfig_pkg.vhd` | `clog2` and string-to-ROM helper functions |
-| `lscc/osc0/` | Generated OSC IP (25 MHz HF clock, LMMI clock path enabled) |
-| `lscc/nexus_reconfig.rdf` | Radiant project, implementation `impl_1` |
+| `src/sv/nexus_reconfig_top.sv`, `src/vhdl/nexus_reconfig_top.vhd` | Top level: OSC IP, `CONFIG_LMMI` primitive, `reconfig_core` |
+| `src/sv/reconfig_core.sv`, `src/vhdl/reconfig_core.vhd` | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
+| `src/sv/lmmi_refresh.sv`, `src/vhdl/lmmi_refresh.vhd` | LMMI host that writes `LSC_REFRESH` |
+| `src/sv/uart_tx.sv`, `src/vhdl/uart_tx.vhd` | UART transmitter, 8N1 |
+| `src/vhdl/nexus_reconfig_pkg.vhd` | VHDL only: `clog2` and string-to-ROM helper functions |
+| `lscc/osc0/` | Generated OSC IP (25 MHz HF clock, LMMI clock path enabled), used by both implementations |
+| `lscc/nexus_reconfig.rdf` | Radiant project with the implementations `impl_sv` (default) and `impl_vhdl` |
+| `lscc/nexus_reconfig_*_{sv,vhdl}_ftusb0.xcf` | Programmer chain files per implementation (see "Running on the board") |
 | `constraints/nexus_reconfig.pdc` | Clock, pins, INITN release, false paths (post-synthesis) |
 | `constraints/nexus_reconfig.sdc` | Clock for synthesis |
-| `tb/tb_reconfig_core.vhd` | Self-checking VHDL-2008 testbench with an LMMI target model and UART monitors (ports only, component binding: runs against the VHDL design or the SystemVerilog original) |
-| `tb/tb_equiv.sv` | Lock-step equivalence testbench: VHDL against the SystemVerilog original |
-| `sim/sim_filelist.f` | Simulation file list, VHDL design with `tb_reconfig_core` |
-| `sim/sim_svref_filelist.f` | `tb_reconfig_core` with the SystemVerilog original |
+| `tb/tb_reconfig_core.sv` | Self-checking SystemVerilog testbench with an LMMI target model and UART monitors (ports only: runs against either implementation) |
+| `tb/tb_reconfig_core.vhd` | The same testbench in VHDL-2008 (ports only, component binding: runs against either implementation) |
+| `tb/tb_equiv.sv` | Lock-step equivalence testbench: VHDL-2008 against SystemVerilog |
+| `sim/sim_sv_filelist.f` | SystemVerilog design, SystemVerilog testbench |
+| `sim/sim_vhdl_filelist.f` | VHDL design, VHDL testbench |
+| `sim/sim_sv_vhdtb_filelist.f` | SystemVerilog design, VHDL testbench |
+| `sim/sim_vhdl_svtb_filelist.f` | VHDL design, SystemVerilog testbench |
 | `sim/equiv_filelist.f` | `tb_equiv` with both implementations |
-| `sim/lint_top_filelist.f` | File list for the elaborate-only check of the full top level |
-| `sim/run_vhdl.do` | Questa run script for the VHDL simulations |
-| `scripts/create_project.tcl` | Re-creates the Radiant project (VHDL-2008 enabled for Synplify Pro and LSE) |
-| `scripts/make_sv_ref.sh` | Extracts the SystemVerilog original from git into `sim/mcp_sim/sv_ref/` |
-| `scripts/make_tb_check.sh` | Prepares the fault-injection check of the testbench conversion in `sim/mcp_sim/tb_check/` |
+| `sim/lint_top_sv_filelist.f`, `sim/lint_top_vhdl_filelist.f` | Elaborate-only check of the full top level, per implementation |
+| `sim/run_vhdl.do` | Questa run script for the simulations with VHDL design units |
+| `scripts/create_project.tcl` | Re-creates the Radiant project with both implementations (VHDL-2008 enabled for Synplify Pro and LSE) |
+| `scripts/build_all.tcl` | Builds both implementations |
+| `scripts/make_sv_ref.sh` | Copies `src/sv/` with `ref_` module names into `sim/mcp_sim/sv_ref/` for `tb_equiv` |
+| `scripts/make_tb_check.sh` | Prepares the fault-injection check of both testbenches in `sim/mcp_sim/tb_check/` |
+| `logs/` | Programmer logs and raw UART captures of the hardware tests |
 | `docs/` | FPGA-TN-02099 (sysCONFIG) and FPGA-TN-02145 (Multi-Boot) user guides, block diagram (`block_diagram.svg`) |
 
 ### Ports and pins
@@ -108,7 +117,7 @@ sysCONFIG pin; like the CRUVI design, the `.pdc` releases it with
 | Parameter | Default | Meaning |
 | :-- | :-- | :-- |
 | `AUTO_REFRESH_MS` | 10000 | Auto-refresh delay after the banner; 0 = button only |
-| `LED_ACTIVE_LOW` | `false` | Set to `true` if the board LEDs light on a low level (VHDL `boolean`) |
+| `LED_ACTIVE_LOW` | `false` / `1'b0` | Set if the board LEDs light on a low level (VHDL `boolean`, SystemVerilog `bit`) |
 
 ## Reproducing the results
 
@@ -122,74 +131,82 @@ MCP server.
    cfg_values="HF_OSC_EN:ENABLED; HF_CLK_FREQ:25; LF_OUTPUT_EN:DISABLED; SEDCLK_EN:0; LMMI_CLK_EN:ENABLED")`.
 2. **Project** (already in `lscc/nexus_reconfig.rdf`; only needed to re-create it):
    `radiant_build_detached(tcl_path=<project>/scripts/create_project.tcl)`. The tool reports
-   `failed` because no build stage runs; check that `lscc/nexus_reconfig.rdf` exists.
-3. **Build:** `radiant_build_detached(rdf_path=<project>/lscc/nexus_reconfig.rdf, impl=impl_1)`,
-   `radiant_build_wait`, then `validate_timing(project_path=<project>/lscc)`. The bitstream is
-   `lscc/impl_1/nexus_reconfig_impl_1.bit`.
-4. **SystemVerilog reference** (needed for steps 6 and 7): run `scripts/make_sv_ref.sh` in WSL
-   or on `lb`. It writes the original sources of commit `41439d8` to `sim/mcp_sim/sv_ref/`.
-5. **RTL simulation of the VHDL design:**
-   `simulate_rtl_detached(work_dir=<project>/sim/mcp_sim/vhdl, sim_dir=<project>/sim/mcp_sim/vhdl/system_sim,
-   device=LFD2NX-40-8BG196C, sim_filelist=<project>/sim/sim_filelist.f, top=tb_reconfig_core,
-   libdirs=[/mnt/tools/lscc/radiant/2026.1.1/cae_library/simulation/verilog/uaplatform],
-   skip_validate=true, clean=true)`, then `simulate_rtl_wait`. Pass criterion: `TEST PASSED` in
-   `sim.log`.
-6. **Equivalence with the SystemVerilog original:** as step 5 with
-   `sim_filelist=<project>/sim/equiv_filelist.f`, `top=tb_equiv` and its own `work_dir`/`sim_dir`
-   (`sim/mcp_sim/equiv`). Pass criterion: `TEST PASSED: VHDL-2008 conversion matches ...`.
-7. **Same testbench on the SystemVerilog original:** as step 5 with
-   `sim_filelist=<project>/sim/sim_svref_filelist.f` (`sim/mcp_sim/svref`). The file list passes
-   `-t 1ps` to `vsim` because the VHDL top level instantiates Verilog modules.
-8. **Fault-injection check of the testbench conversion:** run `scripts/make_tb_check.sh`, then
-   for each `sim/mcp_sim/tb_check/<m>_vhdtb.f` and `<m>_svtb.f` run as step 5 with that file list
-   and its own `work_dir`/`sim_dir` (for example `sim/mcp_sim/tb_check/run_<m>_<tb>`, no
-   `libdirs`). See "Testbench conversion" for the expected results.
-9. **Full top-level elaboration** (with the OSCA, CONFIG_CLKRST_CORE and CONFIG_LMMI library
-   cells): as step 5 with `sim_filelist=<project>/sim/lint_top_filelist.f`,
-   `top=nexus_reconfig_top`, `sim_dir=<project>/sim/mcp_sim/lint/system_sim` and
-   `elaborate_only=true`. The file list passes `-t 1ps` to `vsim`: with a VHDL top level the
+   `failed` because no build stage runs; check that `lscc/nexus_reconfig.rdf` lists `impl_sv`
+   and `impl_vhdl`.
+3. **Build both implementations:** `radiant_build_detached(tcl_path=<project>/scripts/build_all.tcl)`,
+   `radiant_build_wait(project_dir=<project>/scripts)`, then
+   `validate_timing(project_path=<project>/lscc/impl_sv)` and
+   `validate_timing(project_path=<project>/lscc/impl_vhdl)`. The bitstreams are
+   `lscc/impl_sv/nexus_reconfig_impl_sv.bit` and `lscc/impl_vhdl/nexus_reconfig_impl_vhdl.bit`.
+   Do not use `radiant_build_detached(rdf_path=..., impl=impl_vhdl)`: the MCP tool (2026-11-14)
+   ignores `impl` and always builds the project's default implementation (`impl_sv`). The
+   `prj_run_*` commands have no `-impl` option, so `build_all.tcl` activates each
+   implementation in turn with `prj_activate_impl` and leaves `impl_sv` active.
+4. **RTL simulation, four design and testbench combinations:**
+   `simulate_rtl_detached(work_dir=<project>/sim/mcp_sim/<run>, sim_dir=<project>/sim/mcp_sim/<run>/system_sim,
+   device=LFD2NX-40-8BG196C, sim_filelist=<project>/sim/<list>, top=tb_reconfig_core,
+   skip_validate=true, clean=true)`, then `simulate_rtl_wait`, for each pair of `<list>` and `<run>`:
+   `sim_sv_filelist.f` / `sv`, `sim_vhdl_filelist.f` / `vhdl`, `sim_sv_vhdtb_filelist.f` /
+   `sv_vhdtb`, `sim_vhdl_svtb_filelist.f` / `vhdl_svtb`. Pass criterion: `TEST PASSED` in
+   `sim.log`. `sim_sv_vhdtb_filelist.f` passes `-t 1ps` to `vsim` because the VHDL top level
+   instantiates Verilog modules.
+5. **Equivalence of the two implementations:** run `scripts/make_sv_ref.sh` (WSL or `lb`), then
+   as step 4 with `sim_filelist=<project>/sim/equiv_filelist.f`, `top=tb_equiv`,
+   `<run>=equiv` and
+   `libdirs=[/mnt/tools/lscc/radiant/2026.1.1/cae_library/simulation/verilog/uaplatform]`.
+   Pass criterion: `TEST PASSED: VHDL-2008 and SystemVerilog implementations match cycle for cycle`.
+6. **Fault-injection check of the testbenches:** run `scripts/make_tb_check.sh`, then for each
+   `sim/mcp_sim/tb_check/<m>_vhdtb.f` and `<m>_svtb.f` run as step 4 with that file list and its
+   own `work_dir`/`sim_dir` (for example `sim/mcp_sim/tb_check/run_<m>_<tb>`). See "Testbenches"
+   for the expected results.
+7. **Full top-level elaboration** (with the OSCA, CONFIG_CLKRST_CORE and CONFIG_LMMI library
+   cells): as step 5 with `sim_filelist=<project>/sim/lint_top_sv_filelist.f` (`<run>=lint_sv`)
+   and `lint_top_vhdl_filelist.f` (`<run>=lint_vhdl`), `top=nexus_reconfig_top` and
+   `elaborate_only=true`. The VHDL file list passes `-t 1ps` to `vsim`: with a VHDL top level the
    default resolution is 1 ns, and the Lattice Verilog cells need 1 ps (`vsim-3693`).
 
-The VHDL file lists compile with `-vcom.options -2008 -end` and run `sim/run_vhdl.do`. That
+The file lists with VHDL design units compile with `-vcom.options -2008 -end` and run `sim/run_vhdl.do`. That
 script suppresses numeric_std metavalue warnings for the time-0 delta cycles only: registers
 without a reset value are `'U'` until the power-on reset clears them (X in the SystemVerilog
 original), and numeric_std reports this once when the concurrent statements are first evaluated.
 Warnings after time 0 are still reported.
 
-## Verification results (2026-11-12, Radiant 2026.1.1, VHDL-2008)
+## Verification results (2026-11-14, Radiant 2026.1.1, branch `dual-language`)
 
-| Check | Result |
+| Check | SystemVerilog (`impl_sv`) | VHDL-2008 (`impl_vhdl`) |
+| :-- | :-- | :-- |
+| RTL simulation, own-language testbench | `TEST PASSED`, 12 checks, 0 errors, 0 warnings | `TEST PASSED`, 12 checks, 0 errors, 0 warnings |
+| RTL simulation, other-language testbench | `TEST PASSED`, 0 errors, 0 warnings | `TEST PASSED`, 0 errors, 0 warnings |
+| Elaborate-only, full top level with device library cells | 0 errors, 2 warnings (`vopt-2958 Implicit wire '<protected>'`, inside the encrypted Lattice library cells) | Same |
+| Timing (`validate_timing`) | Met at all corners, 0 failing endpoints, constraint coverage 100 % | Same |
+| Worst setup slack, `sys_clk` 25 MHz (85 °C) | +35.901 ns (logic Fmax about 244 MHz) | +36.072 ns (about 254 MHz) |
+| Worst hold slack | +0.155 ns | +0.190 ns |
+| Resources | 216 LUT4, 123 registers, 2 EBR, 1 OSC, 1 CONFIG_LMMI, 4 I/O | 211 LUT4, 123 registers, 1 EBR, 1 OSC, 1 CONFIG_LMMI, 4 I/O |
+| Hardware, CRUVI board | **Passed** 2026-11-14 | **Passed** 2026-11-13 |
+
+| Check across both implementations | Result |
 | :-- | :-- |
-| RTL simulation, VHDL design, VHDL testbench (`tb_reconfig_core`) | `TEST PASSED`, 12 checks, 0 errors, 0 warnings |
-| Equivalence with the SystemVerilog original (`tb_equiv`) | `TEST PASSED`: 4 parameter sets, about 300 000 cycles each, 0 output mismatches, 0 warnings |
-| Same VHDL testbench on the SystemVerilog original | `TEST PASSED`, 0 errors, 0 warnings |
-| Fault injection: VHDL and SystemVerilog testbench on 4 mutants | Identical results on every mutant (see "Testbench conversion") |
-| Elaborate-only, full top level with device library cells | 0 errors, 2 warnings, both `vopt-2958 Implicit wire '<protected>'` from inside the encrypted Lattice library cells |
-| Timing (`validate_timing`) | Met at all corners: 0 failing endpoints, constraint coverage 100 % |
-| Worst setup slack, `sys_clk` 25 MHz | +36.072 ns (85 °C), so the logic Fmax is about 254 MHz |
-| Worst hold slack | +0.190 ns |
-| Resources | 211 LUT4, 123 registers, 1 EBR (message ROM), 1 OSC, 1 CONFIG_LMMI, 4 I/O |
-| `CONFIG_LMMI` in the synthesised netlist | Same connections as the SystemVerilog build (`RSTSMCLK`, `SMCLK` tied to GND by synthesis in both) |
-| Hardware | **Not yet tested on the board** |
+| Lock-step equivalence (`tb_equiv`) | `TEST PASSED`: 4 parameter sets, about 300 000 cycles each, 0 output mismatches, 0 warnings |
+| Fault injection, both testbenches on 4 mutants | Identical results on every mutant (see "Testbenches") |
+| Bitstreams of the restructured project | Configuration data identical, byte for byte after the text header, to the board-tested builds: `impl_sv` to the `main` build (`41439d8`) tested on 2026-11-14, `impl_vhdl` to a rebuild of the board-tested VHDL sources (`f5504f3`) |
 
-The SystemVerilog original (`main`, commit `41439d8`) gave 216 LUT4, 123 registers, 2 EBR,
-setup slack +35.901 ns and hold slack +0.155 ns. The differences come from synthesis packing the
-two message ROMs differently, not from a change in function.
+The resource and slack differences come from synthesis packing the two message ROMs differently
+(one EBR for VHDL, two for SystemVerilog), not from a change in function.
 
-### Testbench conversion
+### Testbenches
 
-`tb/tb_reconfig_core.vhd` replaces the SystemVerilog `tb_reconfig_core.sv` (last version in commit
-`358c619`). It has the same three DUT instances, stimulus, LMMI target model, UART monitors, the
+`tb/tb_reconfig_core.vhd` is a conversion of `tb/tb_reconfig_core.sv`. It has the same three DUT instances, stimulus, LMMI target model, UART monitors, the
 same 12 final checks and the same checks during the run. Differences:
 
 - The LMMI back-pressure uses `ieee.math_real.uniform` instead of `$urandom`, so the ready pattern,
   and with it the time of each LMMI byte, differs from the SystemVerilog run. The event log times
   of the UART messages differ by up to 2 us because the VHDL monitor reports through signals.
 - The DUT is bound through a component declaration, so the same testbench runs against the VHDL
-  entity and the SystemVerilog module.
+  entity and the SystemVerilog module. The SystemVerilog testbench uses only the DUT ports, so
+  it also runs against either implementation.
 
-Fault injection (`scripts/make_tb_check.sh`): each mutant is a copy of `src/*.vhd` with one fault.
-Both testbenches were run on every mutant (2026-11-13):
+Fault injection (`scripts/make_tb_check.sh`): each mutant is a copy of `src/vhdl/*.vhd` with one fault.
+Both testbenches were run on every mutant (2026-11-13, repeated with the same results on 2026-11-14 after the restructuring):
 
 | Mutant | Fault | VHDL testbench | SystemVerilog testbench |
 | :-- | :-- | :-- | :-- |
@@ -198,14 +215,14 @@ Both testbenches were run on every mutant (2026-11-13):
 | `m3_nodrain` | Refresh starts without waiting for the last UART character | PASSED (not detected) | PASSED (not detected) |
 | `m4_bootled` | Boot LED never on | FAILED, 1 error (A: `boot LED not on at 1 ms`) | Same 1 error |
 
-`m3_nodrain` is a coverage gap of the original testbench, not of the conversion: with about one
+`m3_nodrain` is a coverage gap of both testbenches, inherited from the original one: with about one
 cycle in three of `LMMIREADY` low, `lmmi_refresh` needs about 2 ms to see 16 consecutive ready
 cycles, so the last character (200 us at 50 kbaud) has always left the UART before the first LMMI
 request, and the check "LMMI request before the UART message completed" cannot fire.
 
-### VHDL-2008 conversion
+### VHDL-2008 implementation
 
-- One VHDL entity per SystemVerilog module, with the same names, generics and ports. The
+- The VHDL-2008 implementation is a conversion of the SystemVerilog original. One VHDL entity per SystemVerilog module, with the same names, generics and ports. The
   generics are `positive`/`natural`, apart from `LED_ACTIVE_LOW` (`boolean`). The ports are
   `std_logic` / `std_logic_vector`. The SystemVerilog `$clog2` and the packed message strings are
   replaced by `clog2` and `to_rom` in `nexus_reconfig_pkg`.
@@ -214,7 +231,8 @@ request, and the check "LMMI request before the UART message completed" cannot f
   (`cae_library/synthesis/vhdl/lfd2nx.vhd`). A local declaration is used because the
   precompiled Questa library `lfd2nx` holds only the Verilog cells, not a VHDL `components`
   package.
-- `tb_equiv` runs the original SystemVerilog modules (renamed `ref_*`) and the VHDL entities
+- `tb_equiv` runs the SystemVerilog modules (renamed `ref_*` by `scripts/make_sv_ref.sh`, because
+  both implementations share one library) and the VHDL entities
   side by side with identical stimulus. It compares `rst_no` from time 0 and all outputs
   (`led_o`, `txd_o`, `lmmi_*`, `refresh_done_o`) on every clock from the release of the
   power-on reset. Before that release the SystemVerilog registers are X and the VHDL
@@ -263,7 +281,7 @@ What it does not cover:
   replaced by the project's `sys_clk`.
 - A clock `osc0_inst/lscc_osc_inst/sed_sec_out_w` (225 MHz on `HFSDCOUT`) appears in the timing
   report. It is derived from the OSC IP and has no paths.
-- `Unbound component CONFIG_LMMI of instance config_lmmi_inst` (Synplify Z198): the VHDL top level
+- `Unbound component CONFIG_LMMI of instance config_lmmi_inst` (Synplify Z198, `impl_vhdl` only): the VHDL top level
   declares the primitive as a component; Synplify maps it to the `CONFIG_LMMI` library cell,
   as the netlist (`LMMI_EN = "EN"`) and the map report (Config LMMI 1/1) show.
 - `User-specified initial value defined for some sequential elements` (FX474): the power-on reset
@@ -278,24 +296,83 @@ What it does not cover:
 ## Running on the board
 
 `LSC_REFRESH` reloads the configuration from the SPI flash, so the result depends on what the
-flash holds:
+flash holds. The JTAG cable and the UART are the board's FT2232H (USB serial `FT7BCWYB`): channel
+A is JTAG (`FTUSB-0` when only this board is attached; the index changes with the attached
+boards), channel B is the UART.
 
-- **Bitstream in the SPI flash (full demonstration):** program
-  `lscc/impl_1/nexus_reconfig_impl_1.bit` into the external SPI flash (Radiant Programmer, target
-  "External SPI Flash Memory", port JTAG2SPI, Erase, Program, Verify), then power-cycle the board.
-  Open a UART terminal on the FTDI channel B at 115200 8N1. Every 10 s (or on a press of the
-  button on B2) the terminal shows the refresh message followed by a new
-  `NexusReconfig: FPGA configured` banner, and `led_o[0]` lights again for 2 s.
-- **SRAM load over JTAG only:** after the refresh the device loads the SPI flash image instead of
-  this design (or fails to configure if the flash is empty). This still shows that the refresh
-  executed, but the design does not come back.
+Chain files (`lscc/`, all for `USB2` / `FTUSB-0`, device `LFD2NX-40`, IDCODE `0x310F1043`), one
+set per implementation (`<L>` = `sv` or `vhdl`, using `lscc/impl_<L>/nexus_reconfig_impl_<L>.bit`):
+
+| File | Operation |
+| :-- | :-- |
+| `nexus_reconfig_verifyid_<L>_ftusb0.xcf` | Verify ID (read-only board identification) |
+| `nexus_reconfig_sram_<L>_ftusb0.xcf` | Fast Configuration (SRAM, lost at power-off) |
+| `nexus_reconfig_spiflash_<L>_ftusb0.xcf` | External SPI flash: Erase, Program, Verify through the FPGA loader (JTAG2SPI) |
+| `nexus_reconfig_refresh_<L>_ftusb0.xcf` | JTAG Refresh: reload the configuration from the SPI flash |
+
+The bitstream sizes are in the SPI flash chain files (`DataSize`); update them after a rebuild
+that changes the size.
+
+The SPI flash chain file is the GUI-saved Certus-NX file
+`/mnt/lscc/devel/Demo/CNX_FullBridge_260220/poc_design/impl_1/cnx40.xcf` with only the
+bitstream, its size and last sector (`0xC0000`) and the port changed. Its flash entry is
+`MT25QU128`. The Programmer checks only the capacity byte of the flash ID (`0x18`, 128 Mbit)
+with a generic algorithm, and the check passed on the CRUVI board. The flash vendor on the board
+was not identified.
+
+Procedure (MCP `radiant_program` on `lb`; it reports `failed` even on success, the verdict is
+`Operation: successful.` in `~/.config/LatticeSemi/DiamondNG/programmer.log` on `lb`):
+
+1. Verify ID with `nexus_reconfig_verifyid_<L>_ftusb0.xcf`.
+2. Program the flash with `nexus_reconfig_spiflash_<L>_ftusb0.xcf` (Erase, Program, Verify, 10 s).
+   The FPGA does not restart by itself afterwards.
+3. Start the design from the flash: `nexus_reconfig_refresh_<L>_ftusb0.xcf` or a power cycle.
+4. Capture the UART on `lb`:
+   `python3 /mnt/lscc/devel/Claude/Cruvi/scripts/uart_capture.py --serial FT7BCWYB --interface B --baud 115200 --seconds 45`.
+
+`radiant_program` needs `force=True` for these bitstreams: Radiant rewrites the `.rdf` at the end
+of the build, after writing the bitstream, so the freshness check sees the project as newer. To
+capture the boot banner of an SRAM load, start the UART capture first and load with
+`pgrcmd -infile <chain file>` (`/mnt/tools/lscc/radiant/2026.1.1/programmer/bin/lin64`):
+`radiant_program` returns about 18 s after the load starts, after the 10 s auto-refresh.
+
+### Hardware results
+
+VHDL-2008 build (2026-11-13, commit `358c619`, same design sources as `impl_vhdl`):
+
+| Step | Result | Log |
+| :-- | :-- | :-- |
+| Verify ID | IDCODE `0x310F1043` (LFD2NX-40) on `FTUSB-0` | |
+| UART before any load (flash image of an earlier design) | No output in 12 s | |
+| SRAM load (`pgrcmd`, UART capture running) | Banner, then `issuing LSC_REFRESH` 10 s later, then nothing (the flash held another design) | `logs/uart_vhdl_sram_load_20261113.bin` (70 bytes) |
+| SPI flash Erase, Program, Verify | `Operation Done. No Error.` | `logs/programmer_vhdl_20261113.log` |
+| JTAG Refresh, then 45 s UART capture | 4 complete cycles of banner and `issuing LSC_REFRESH`: every `LSC_REFRESH` written by the fabric reconfigured the device from the flash | `logs/uart_vhdl_spiflash_refresh_20261113.bin` (280 bytes) |
+
+SystemVerilog build (2026-11-14, `main` commit `41439d8`, configuration data identical to `impl_sv`):
+
+| Step | Result | Log |
+| :-- | :-- | :-- |
+| Verify ID | Successful on `FTUSB-0` | |
+| SRAM load (`pgrcmd`, UART capture running) | Banner, `issuing LSC_REFRESH`, then the VHDL build from the flash booted and kept cycling: the SystemVerilog `LSC_REFRESH` reconfigured the device | `logs/uart_sv_sram_load_20261114.bin` (174 bytes) |
+| SPI flash Erase, Program, Verify | `Operation Done. No Error.` | `logs/programmer_sv_sram_flash_20261114.log` |
+| JTAG Refresh, then 60 s UART capture | 5 boots and 4 `LSC_REFRESH` cycles, all from the SystemVerilog build in the flash | `logs/uart_sv_spiflash_refresh_20261114.bin` (314 bytes), `logs/programmer_sv_refresh_20261114.log` |
+
+Restructured project (2026-11-14, `nexus_reconfig_sram_vhdl_ftusb0.xcf`): `impl_vhdl` loaded into
+SRAM while the SystemVerilog build in the flash was running. The capture shows the running
+SystemVerilog build refreshing, the VHDL banner after the load, its `LSC_REFRESH` 10 s later and
+the SystemVerilog build booting from the flash again
+(`logs/uart_dual_vhdl_sram_over_sv_flash_20261114.bin`, 174 bytes).
 
 ## Open items
 
 - Testbench coverage gap: a missing UART drain before the refresh is not detected
-  (`m3_nodrain`, see "Testbench conversion"). An instance with `LMMIREADY` always high would
+  (`m3_nodrain`, see "Testbenches"). An instance with `LMMIREADY` always high would
   expose it.
-- Hardware test not yet done.
+- The SPI flash of the CRUVI board holds the SystemVerilog build (since 2026-11-14). The
+  original flash content, an earlier design that printed nothing on the UART, was erased on
+  2026-11-13.
+- `led_o` and the button were not observed: the hardware test used the UART only, with the
+  auto-refresh timer as the trigger.
 - LED polarity on the CRUVI board is not confirmed (`LED_ACTIVE_LOW`, default 0).
 - Whether B2 is connected to a push button on the CRUVI board is not confirmed (the CRUVI demo
   names it `rstn_i`). The auto-refresh timer works without it.

@@ -3,8 +3,8 @@
 --
 -- Self-checking VHDL-2008 testbench for reconfig_core / lmmi_refresh / uart_tx.
 -- It uses only the DUT ports and binds the DUT through a component
--- declaration, so it runs unchanged against the VHDL-2008 implementation
--- (src/*.vhd) and the SystemVerilog original (commit 41439d8).
+-- declaration, so it runs unchanged against both implementations:
+-- src/vhdl/*.vhd (VHDL-2008) and src/sv/*.sv (SystemVerilog).
 --
 -- The CONFIG_LMMI primitive has no supported simulation model
 -- (FPGA-TN-02099-3.7, Table D.1 note 1), so lmmi_target_model below stands in

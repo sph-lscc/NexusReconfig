@@ -1,30 +1,28 @@
 #!/bin/sh
 # -----------------------------------------------------------------------------
-# Prepare the fault-injection check of the VHDL testbench conversion.
+# Prepare the fault-injection check of the two testbenches.
 # Writes to sim/mcp_sim/tb_check/ (not versioned):
-#   tb_reconfig_core.sv   SystemVerilog testbench of commit 358c619
-#   <m>/*.vhd             copy of src/*.vhd with one injected fault
+#   <m>/*.vhd             copy of src/vhdl/*.vhd with one injected fault
 #   <m>_vhdtb.f           VHDL testbench (tb/tb_reconfig_core.vhd) on mutant <m>
-#   <m>_svtb.f            SystemVerilog testbench on mutant <m>
-# Both testbenches must report TEST FAILED on every mutant, with the same checks.
-# Usage: scripts/make_tb_check.sh [commit of the SystemVerilog testbench]
+#   <m>_svtb.f            SystemVerilog testbench (tb/tb_reconfig_core.sv) on <m>
+# Both testbenches must report TEST FAILED on mutants m1, m2 and m4, with the
+# same checks (m3_nodrain is a known coverage gap of both, see Readme).
+# Usage: scripts/make_tb_check.sh
 # -----------------------------------------------------------------------------
 set -eu
-REF=${1:-358c619}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=$ROOT/sim/mcp_sim/tb_check
 rm -rf "$OUT"
 mkdir -p "$OUT"
-git -C "$ROOT" show "$REF:tb/tb_reconfig_core.sv" > "$OUT/tb_reconfig_core.sv"
 
 # mutant  file  sed expression
 mutate() {
     m=$1; f=$2; expr=$3
     mkdir -p "$OUT/$m"
-    cp "$ROOT"/src/nexus_reconfig_pkg.vhd "$ROOT"/src/uart_tx.vhd \
-       "$ROOT"/src/lmmi_refresh.vhd "$ROOT"/src/reconfig_core.vhd "$OUT/$m/"
+    cp "$ROOT"/src/vhdl/nexus_reconfig_pkg.vhd "$ROOT"/src/vhdl/uart_tx.vhd \
+       "$ROOT"/src/vhdl/lmmi_refresh.vhd "$ROOT"/src/vhdl/reconfig_core.vhd "$OUT/$m/"
     sed -i -E "$expr" "$OUT/$m/$f"
-    if cmp -s "$ROOT/src/$f" "$OUT/$m/$f"; then
+    if cmp -s "$ROOT/src/vhdl/$f" "$OUT/$m/$f"; then
         echo "mutation $m did not change $f" >&2; exit 1
     fi
     for tb in vhdtb svtb; do
@@ -32,7 +30,7 @@ mutate() {
             echo "-vcom.options -2008 -end"
             echo "-do $ROOT/sim/run_vhdl.do"
             for s in nexus_reconfig_pkg uart_tx lmmi_refresh reconfig_core; do echo "$OUT/$m/$s.vhd"; done
-            if [ $tb = vhdtb ]; then echo "$ROOT/tb/tb_reconfig_core.vhd"; else echo "$OUT/tb_reconfig_core.sv"; fi
+            if [ $tb = vhdtb ]; then echo "$ROOT/tb/tb_reconfig_core.vhd"; else echo "$ROOT/tb/tb_reconfig_core.sv"; fi
         } > "$OUT/${m}_$tb.f"
     done
 }

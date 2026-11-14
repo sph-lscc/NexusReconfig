@@ -1,12 +1,11 @@
 // -----------------------------------------------------------------------------
 // tb_equiv.sv
 //
-// Lock-step equivalence check of the VHDL-2008 conversion against the original
-// SystemVerilog implementation.
+// Lock-step equivalence check of the two implementations of the design:
 //
-//   ref_reconfig_core  SystemVerilog sources of commit 41439d8, with the module
-//                      names prefixed by ref_ (scripts/make_sv_ref.sh)
-//   reconfig_core      VHDL-2008 sources in src/*.vhd
+//   ref_reconfig_core  SystemVerilog sources in src/sv/, with the module names
+//                      prefixed by ref_ (scripts/make_sv_ref.sh)
+//   reconfig_core      VHDL-2008 sources in src/vhdl/
 //
 // Each equiv_pair instance drives both implementations with the same button
 // and LMMI-ready stimulus and compares every output on every clock cycle. The
@@ -193,7 +192,7 @@ module tb_equiv;
         if (!covered) begin
             $display("ERROR: stimulus coverage incomplete"); errors++;
         end
-        if (errors == 0) $display("TEST PASSED: VHDL-2008 conversion matches the SystemVerilog reference cycle for cycle");
+        if (errors == 0) $display("TEST PASSED: VHDL-2008 and SystemVerilog implementations match cycle for cycle");
         else             $display("TEST FAILED: %0d error(s)", errors);
         $finish;
     end
