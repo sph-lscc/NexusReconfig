@@ -26,6 +26,12 @@
   other cycle by cycle in simulation (see "VHDL-2008 implementation"), and both were tested on
   the board.
 
+## Releases (git tags)
+
+| Tag | Tool version | IP versions | Content | Verification |
+| :-- | :-- | :-- | :-- | :-- |
+| `r2026.1.1` | Radiant 2026.1.1 | osc 1.4.0 | First release: SystemVerilog (`impl_sv`) and VHDL-2008 (`impl_vhdl`) implementations in one project, testbenches in both languages | Both implementations: timing met, RTL simulation PASS, lock-step equivalence 0 mismatches, hardware test passed on the CRUVI board |
+
 ## How it works
 
 ![NexusReconfig block diagram](docs/block_diagram.svg)
@@ -171,7 +177,7 @@ without a reset value are `'U'` until the power-on reset clears them (X in the S
 original), and numeric_std reports this once when the concurrent statements are first evaluated.
 Warnings after time 0 are still reported.
 
-## Verification results (2026-11-14, Radiant 2026.1.1, branch `dual-language`)
+## Verification results (2026-11-14, Radiant 2026.1.1)
 
 | Check | SystemVerilog (`impl_sv`) | VHDL-2008 (`impl_vhdl`) |
 | :-- | :-- | :-- |
