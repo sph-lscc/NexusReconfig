@@ -1,0 +1,55 @@
+			Lattice Semiconductor Corporation.
+			Lattice Programmer Radiant Software (64-bit) 2026.1.1.229.0  Patch Version(s) 34539 Command Line Encryption (Database Version R2026.1)
+
+
+
+System Information:
+-----------------------------------------------------
+Linux LinuxBox 6.8.0-138-generic #138~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Fri Aug  7 13:43:15 UTC  x86_64 x86_64 x86_64 GNU/Linux
+Begin of Operation : 11-14-2026 Sat 11:14:42
+Board with FTDI USB Host Chip detected.
+
+
+Frequency setting= 15000000 Hz
+Check configuration setup: Start.
+JTAG Chain Verification. No Errors.
+Check configuration setup: Successful.
+Device1 LFD2NX-40: Fast Configuration
+Execution time: 00 min : 09 sec
+Operation Done. No errors.
+Elapsed time: 00 min : 09 sec
+Operation: successful.
+End of Operation : 11-14-2026 Sat 11:14:54
+			Lattice Semiconductor Corporation.
+			Radiant Programmer Radiant Software (64-bit) 2026.1.1.229.0  Patch Version(s) 34539 Encryption
+
+
+
+System Information:
+-----------------------------------------------------
+Linux LinuxBox 6.8.0-138-generic #138~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Fri Aug  7 13:43:15 UTC  x86_64 x86_64 x86_64 GNU/Linux
+Begin of Operation : 11-14-2026 Sat 11:15:57
+Board with FTDI USB Host Chip detected.
+
+
+Frequency setting= 15000000 Hz
+Check configuration setup: Start.
+Check configuration setup: Successful (Ignored JTAG Connection Checking).
+Device1 LFD2NX-40: LFD2NX-40: Refresh Verify ID
+Execution time: 00 min : 05 sec
+Operation Done. No errors.
+Device1 LFD2NX-40: MT25QU128: Erase,Program,Verify
+Initializing...
+IDCode Checking...
+Enabling...
+Erasing...
+Disabling...
+Enabling...
+Programming...
+Disabling...
+Verifying...
+Execution time: 00 min : 07 sec
+Operation Done. No Error.
+Elapsed time: 00 min : 12 sec
+Operation: successful.
+End of Operation : 11-14-2026 Sat 11:16:15

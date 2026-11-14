@@ -1,19 +1,46 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<RadiantProject version="4.2" radiant="2026.1.1.229.0" title="nexus_reconfig" device="LFD2NX-40-8BG196C" performance_grade="8_High-Performance_1.0V" family_int="jd5s00" device_int="jd5s30" package_int="CABGA196" operation_int="COM" speed_int="11" default_implementation="impl_1">
+<RadiantProject version="4.2" radiant="2026.1.1.229.0" title="nexus_reconfig" device="LFD2NX-40-8BG196C" performance_grade="8_High-Performance_1.0V" family_int="jd5s00" device_int="jd5s30" package_int="CABGA196" operation_int="COM" speed_int="11" default_implementation="impl_sv">
     <Options/>
-    <Implementation title="impl_1" dir="impl_1" description="impl_1" synthesis="synplify" default_strategy="Strategy1">
+    <Implementation title="impl_sv" dir="impl_sv" description="impl_sv" synthesis="synplify" default_strategy="Strategy1">
         <Options VerilogStandard="System Verilog" top="nexus_reconfig_top"/>
-        <Source name="../src/uart_tx.sv" type="Verilog" type_short="Verilog">
+        <Source name="../src/sv/uart_tx.sv" type="Verilog" type_short="Verilog">
             <Options VerilogStandard="System Verilog"/>
         </Source>
-        <Source name="../src/lmmi_refresh.sv" type="Verilog" type_short="Verilog">
+        <Source name="../src/sv/lmmi_refresh.sv" type="Verilog" type_short="Verilog">
             <Options VerilogStandard="System Verilog"/>
         </Source>
-        <Source name="../src/reconfig_core.sv" type="Verilog" type_short="Verilog">
+        <Source name="../src/sv/reconfig_core.sv" type="Verilog" type_short="Verilog">
             <Options VerilogStandard="System Verilog"/>
         </Source>
-        <Source name="../src/nexus_reconfig_top.sv" type="Verilog" type_short="Verilog">
+        <Source name="../src/sv/nexus_reconfig_top.sv" type="Verilog" type_short="Verilog">
             <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="osc0/osc0.ipx" type="IPX_Module" type_short="IPX">
+            <Options/>
+        </Source>
+        <Source name="../constraints/nexus_reconfig.sdc" type="Pre-Synthesis Constraints File" type_short="SDC">
+            <Options/>
+        </Source>
+        <Source name="../constraints/nexus_reconfig.pdc" type="Physical Constraints File" type_short="PDC">
+            <Options/>
+        </Source>
+    </Implementation>
+    <Implementation title="impl_vhdl" dir="impl_vhdl" description="impl_vhdl" synthesis="synplify" default_strategy="Strategy1">
+        <Options VerilogStandard="System Verilog" top="nexus_reconfig_top"/>
+        <Source name="../src/vhdl/nexus_reconfig_pkg.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../src/vhdl/uart_tx.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../src/vhdl/lmmi_refresh.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../src/vhdl/reconfig_core.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../src/vhdl/nexus_reconfig_top.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
         </Source>
         <Source name="osc0/osc0.ipx" type="IPX_Module" type_short="IPX">
             <Options/>

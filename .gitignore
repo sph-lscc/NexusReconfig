@@ -27,3 +27,6 @@ sim/mcp_sim/
 qrun.out/
 transcript
 lscc/promote.pfl
+
+# radiant_program working files
+lscc/program/

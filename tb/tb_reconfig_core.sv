@@ -2,6 +2,8 @@
 // tb_reconfig_core.sv
 //
 // Self-checking testbench for reconfig_core / lmmi_refresh / uart_tx.
+// It uses only the DUT ports, so it runs unchanged against both
+// implementations: src/sv/*.sv (SystemVerilog) and src/vhdl/*.vhd (VHDL-2008).
 //
 // The CONFIG_LMMI primitive has no supported simulation model
 // (FPGA-TN-02099-3.7, Table D.1 note 1), so lmmi_target_model below stands in
@@ -106,6 +108,7 @@ module tb_reconfig_core;
 
     int errors = 0;
     int past_a = 0, past_b = 0;
+    bit b_btn_q = 1'b1;
 
     // ---------------- instance A: auto refresh ----------------
     logic       a_btn = 1'b1;
@@ -163,16 +166,21 @@ module tb_reconfig_core;
         end
     end
 
-    // Event log (time in ms).
+    // Event log (time in ms). Uses only the DUT ports, so the same testbench
+    // runs against the SystemVerilog and the VHDL implementation.
     always @(posedge clk) begin
-        if (dut_a.mstate == dut_a.M_RUN && past_a != dut_a.M_RUN)
-            $display("[A] %8.3f ms: banner sent", $realtime / 1.0e6);
-        if (dut_a.auto_event && dut_a.mstate == dut_a.M_RUN) $display("[A] %8.3f ms: auto-refresh timer expired", $realtime / 1.0e6);
-        if (dut_b.mstate == dut_b.M_RUN && past_b != dut_b.M_RUN)
-            $display("[B] %8.3f ms: banner sent", $realtime / 1.0e6);
-        if (dut_b.btn_event)  $display("[B] %8.3f ms: button press detected", $realtime / 1.0e6);
-        past_a = dut_a.mstate;
-        past_b = dut_b.mstate;
+        if (uart_a.text.len() != past_a) begin
+            if (uart_a.text == MSG0)         $display("[A] %8.3f ms: banner received", $realtime / 1.0e6);
+            if (uart_a.text == {MSG0, MSG1}) $display("[A] %8.3f ms: refresh message received", $realtime / 1.0e6);
+        end
+        if (uart_b.text.len() != past_b) begin
+            if (uart_b.text == MSG0)         $display("[B] %8.3f ms: banner received", $realtime / 1.0e6);
+            if (uart_b.text == {MSG0, MSG1}) $display("[B] %8.3f ms: refresh message received", $realtime / 1.0e6);
+        end
+        if (b_btn_q && !b_btn)               $display("[B] %8.3f ms: button pressed", $realtime / 1.0e6);
+        past_a  = uart_a.text.len();
+        past_b  = uart_b.text.len();
+        b_btn_q = b_btn;
     end
 
     // led[0] must be on during the boot window.
