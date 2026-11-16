@@ -30,6 +30,7 @@
 
 | Tag | Tool version | IP versions | Content | Verification |
 | :-- | :-- | :-- | :-- | :-- |
+| `r2026.1.1-2` | Radiant 2026.1.1 | osc 1.4.0 | `NOCLIP` added next to `syn_noprune` on `CONFIG_LMMI` in both top levels, with a Readme section on when it is needed; `.gitignore` for the Radiant `.recovery` file and Programmer `source/` folder. Configuration data unchanged from `r2026.1.1` | Both implementations: timing met (setup +35.901 / +36.072 ns), RTL simulation PASS, lock-step equivalence 0 mismatches, configuration data identical to `r2026.1.1`, SRAM hardware test passed on the CRUVI board (2026-11-16) |
 | `r2026.1.1` | Radiant 2026.1.1 | osc 1.4.0 | First release: SystemVerilog (`impl_sv`) and VHDL-2008 (`impl_vhdl`) implementations in one project, testbenches in both languages | Both implementations: timing met, RTL simulation PASS, lock-step equivalence 0 mismatches, hardware test passed on the CRUVI board |
 
 ## How it works
