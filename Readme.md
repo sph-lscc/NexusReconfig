@@ -95,7 +95,7 @@ attribute NOCLIP      of config_lmmi_inst : label is true;
 | Tool | What it removes | Attribute that prevents it |
 | :-- | :-- | :-- |
 | Synthesis (Synplify Pro) | A primitive whose outputs drive no device pin | `syn_noprune` on the instance |
-| Map ("Removing unused logic", when the netlist is converted to the UDB database) | Every path that does not run from a valid input to a valid output. Valid outputs are an output pad or a net with `NOCLIP` (Radiant Constraints Reference Guide, "NOCLIP"). A feedback loop that drives only itself is removed. | `NOCLIP` on the instance (or on one of its nets, see below) |
+| Map ("Removing unused logic", when the netlist is converted to the UDB database) | Every path that does not run from a valid input to a valid output. Valid outputs are an output pad or a net with `NOCLIP` (Radiant Constraints Reference Guide, "NOCLIP"). A feedback loop that drives only itself is removed. | `NOCLIP` on the instance |
 
 **When `NOCLIP` is needed.** Only when no device output depends on the logic around
 `CONFIG_LMMI`. Then the path oscillator, `reconfig_core`, `CONFIG_LMMI`, `LMMIREADY` back to
@@ -125,28 +125,8 @@ removal. The only signs are `Number of Config LMMI: 0 out of 1` in
 simulation and elaboration cannot show it. Check the `Config LMMI` line after every build of a
 design that uses `CONFIG_LMMI`.
 
-**Forms that work and forms that do not** (determined by building every variant through
-synthesis and map with Radiant 2026.1.1, on a variant of this design without the UART and
-status LEDs, where the attributes are required):
-
-- Works: `syn_noprune` + `NOCLIP` on the instance (SystemVerilog, VHDL, and with LSE).
-- Works: `syn_keep` + `NOCLIP` on a net of the loop; one net is enough (for example
-  `lmmi_ready`). `syn_noprune` on the instance is still needed.
-- Works: a Synplify `.fdc` constraint file, with no HDL attributes:
-  `define_attribute {i:config_lmmi_inst} {syn_noprune} {1}` and
-  `define_attribute {i:config_lmmi_inst} {NOCLIP} {1}`.
-- Does not work: `NOCLIP` without `syn_noprune` (Synplify removes the primitive before map
-  runs).
-- Does not work: `NOCLIP` on a net without `syn_keep` (Synplify does not pass the attribute to
-  the netlist).
-- Does not work: `ldc_set_attribute` with `NOCLIP` in any constraint file. Radiant 2026.1.1
-  reports `WARNING <1225032> - The attribute key 'NOCLIP' in constraint 'ldc_set_attribute' is
-  not supported`, although the "NOCLIP" help page gives `ldc_set_attribute {NOCLIP} [get_nets
-  net_a]` as its example. In the post-synthesis `.pdc` the objects are also already gone
-  (`Can't resolve object`), because map removes them before it applies the `.pdc`.
-
-Whatever form is used, Synplify writes it into the netlist as `(* NOCLIP=1 *)` on the instance or
-net in `lscc/impl_<L>/nexus_reconfig_impl_<L>.vm`, which is what map reads.
+Synplify writes the attribute into the netlist as `(* NOCLIP=1 *) CONFIG_LMMI config_lmmi_inst`
+in `lscc/impl_<L>/nexus_reconfig_impl_<L>.vm`, which is what map reads.
 
 ## Contents
 
