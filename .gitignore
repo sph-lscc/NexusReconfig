@@ -28,5 +28,11 @@ qrun.out/
 transcript
 lscc/promote.pfl
 
+# Radiant project-recovery file and Programmer chain files saved by the GUI
+# or radiant_program (local state, never committed; a stale .recovery
+# overrides the .rdf source list on prj_open)
+lscc/.recovery
+lscc/source/
+
 # radiant_program working files
 lscc/program/
