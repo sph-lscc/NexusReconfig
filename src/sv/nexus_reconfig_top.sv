@@ -60,6 +60,15 @@ module nexus_reconfig_top #(
         .refresh_done_o ()
     );
 
+    // CONFIG_LMMI keep attributes:
+    //   syn_noprune  Synplify keeps the primitive even if its outputs drive no pin.
+    //   NOCLIP       map keeps the primitive and the logic connected to it.
+    // In this design the refresh logic also drives the UART and the LEDs, so map
+    // keeps it without NOCLIP (same bitstream with and without it). NOCLIP is a
+    // safeguard for variants in which no device pin depends on the refresh logic
+    // (for example branch sv-led-blink): there, map removes CONFIG_LMMI and the
+    // refresh logic as unused without it. See Readme, "Keeping CONFIG_LMMI:
+    // syn_noprune and NOCLIP".
     CONFIG_LMMI #(
         .LMMI_EN ("EN")
     ) config_lmmi_inst (
@@ -74,6 +83,6 @@ module nexus_reconfig_top #(
         .LMMIRDATA      (lmmi_rdata),
         .LMMIREADY      (lmmi_ready),
         .LMMIRDATAVALID (lmmi_rdata_valid)
-    ) /* synthesis syn_noprune=1 */;
+    ) /* synthesis syn_noprune=1 NOCLIP=1 */;
 
 endmodule

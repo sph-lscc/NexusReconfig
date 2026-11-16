@@ -73,11 +73,87 @@ Multi-Boot reference design FPGA-RD-02294 (`source/impl_1/refresh.v`), without i
 (`ISC_ENABLE_X`, `LSC_PROG_CNTRL0`, `ISC_DISABLE` and the `MULTIBOOT` primitive), which are only
 needed to select an alternate image.
 
+### Keeping CONFIG_LMMI: `syn_noprune` and `NOCLIP`
+
+The `CONFIG_LMMI` instance in both top levels carries two attributes:
+
+```systemverilog
+// src/sv/nexus_reconfig_top.sv
+CONFIG_LMMI #(.LMMI_EN ("EN")) config_lmmi_inst ( ... ) /* synthesis syn_noprune=1 NOCLIP=1 */;
+```
+
+```vhdl
+-- src/vhdl/nexus_reconfig_top.vhd (architecture declarative part)
+attribute syn_noprune : boolean;
+attribute NOCLIP      : boolean;
+attribute syn_noprune of config_lmmi_inst : label is true;
+attribute NOCLIP      of config_lmmi_inst : label is true;
+```
+
+**What each one does.** Two tools can remove the primitive and the logic that drives it:
+
+| Tool | What it removes | Attribute that prevents it |
+| :-- | :-- | :-- |
+| Synthesis (Synplify Pro) | A primitive whose outputs drive no device pin | `syn_noprune` on the instance |
+| Map ("Removing unused logic", when the netlist is converted to the UDB database) | Every path that does not run from a valid input to a valid output. Valid outputs are an output pad or a net with `NOCLIP` (Radiant Constraints Reference Guide, "NOCLIP"). A feedback loop that drives only itself is removed. | `NOCLIP` on the instance (or on one of its nets, see below) |
+
+**When `NOCLIP` is needed.** Only when no device output depends on the logic around
+`CONFIG_LMMI`. Then the path oscillator, `reconfig_core`, `CONFIG_LMMI`, `LMMIREADY` back to
+`reconfig_core` is a closed loop with no valid output, and map removes it, together with the
+refresh logic that drives it. `LSC_REFRESH` has an effect on the device, but not one the tools
+can see. Typical cases:
+
+- the refresh logic has no status outputs at all (no UART, no LEDs driven by the sequencer), as
+  on branch `sv-led-blink`, where the only output is an LED flasher with no connection to the
+  refresh logic;
+- the only outputs that depend on the refresh logic are removed later, for example a debug UART
+  taken out of a production build;
+- the `CONFIG_LMMI` read data (`LMMIRDATA`, `LMMIRDATAVALID`) is used only inside a loop that
+  never reaches a pin.
+
+**In this design `NOCLIP` is not needed:** `LMMIREADY` steers the sequencer, which drives
+`txd_o` and `led_o`, so map keeps everything. The attribute is present as a safeguard for
+derived designs. It was checked on 2026-11-16 to change nothing (see "Verification results"):
+both implementations built with and without it give the same map report (Config LMMI 1/1, same
+registers, LUT4s and EBRs), the same timing, and bitstreams whose configuration data is identical
+byte for byte (the files differ only in the build date in the text header). Both builds with
+`NOCLIP` passed the board test.
+
+**How the failure shows.** Silently. The build completes, timing is met, the bitstream loads,
+and the device never refreshes. The map report's "Removed logic" section does not list the
+removal. The only signs are `Number of Config LMMI: 0 out of 1` in
+`lscc/impl_<L>/nexus_reconfig_impl_<L>.mrp` and a lower register count than expected. RTL
+simulation and elaboration cannot show it. Check the `Config LMMI` line after every build of a
+design that uses `CONFIG_LMMI`.
+
+**Forms that work and forms that do not** (determined by building every variant through
+synthesis and map with Radiant 2026.1.1 on the `sv-led-blink` design, where the attributes are
+required; full table in that branch's `Readme.md`):
+
+- Works: `syn_noprune` + `NOCLIP` on the instance (SystemVerilog, VHDL, and with LSE).
+- Works: `syn_keep` + `NOCLIP` on a net of the loop; one net is enough (for example
+  `lmmi_ready`). `syn_noprune` on the instance is still needed.
+- Works: a Synplify `.fdc` constraint file, with no HDL attributes:
+  `define_attribute {i:config_lmmi_inst} {syn_noprune} {1}` and
+  `define_attribute {i:config_lmmi_inst} {NOCLIP} {1}`.
+- Does not work: `NOCLIP` without `syn_noprune` (Synplify removes the primitive before map
+  runs).
+- Does not work: `NOCLIP` on a net without `syn_keep` (Synplify does not pass the attribute to
+  the netlist).
+- Does not work: `ldc_set_attribute` with `NOCLIP` in any constraint file. Radiant 2026.1.1
+  reports `WARNING <1225032> - The attribute key 'NOCLIP' in constraint 'ldc_set_attribute' is
+  not supported`, although the "NOCLIP" help page gives `ldc_set_attribute {NOCLIP} [get_nets
+  net_a]` as its example. In the post-synthesis `.pdc` the objects are also already gone
+  (`Can't resolve object`), because map removes them before it applies the `.pdc`.
+
+Whatever form is used, Synplify writes it into the netlist as `(* NOCLIP=1 *)` on the instance or
+net in `lscc/impl_<L>/nexus_reconfig_impl_<L>.vm`, which is what map reads.
+
 ## Contents
 
 | Path | Content |
 | :-- | :-- |
-| [`src/sv/nexus_reconfig_top.sv`](src/sv/nexus_reconfig_top.sv), [`src/vhdl/nexus_reconfig_top.vhd`](src/vhdl/nexus_reconfig_top.vhd) | Top level: OSC IP, `CONFIG_LMMI` primitive, `reconfig_core` |
+| [`src/sv/nexus_reconfig_top.sv`](src/sv/nexus_reconfig_top.sv), [`src/vhdl/nexus_reconfig_top.vhd`](src/vhdl/nexus_reconfig_top.vhd) | Top level: OSC IP, `CONFIG_LMMI` primitive (with `syn_noprune` and `NOCLIP`), `reconfig_core` |
 | [`src/sv/reconfig_core.sv`](src/sv/reconfig_core.sv), [`src/vhdl/reconfig_core.vhd`](src/vhdl/reconfig_core.vhd) | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
 | [`src/sv/lmmi_refresh.sv`](src/sv/lmmi_refresh.sv), [`src/vhdl/lmmi_refresh.vhd`](src/vhdl/lmmi_refresh.vhd) | LMMI host that writes `LSC_REFRESH` |
 | [`src/sv/uart_tx.sv`](src/sv/uart_tx.sv), [`src/vhdl/uart_tx.vhd`](src/vhdl/uart_tx.vhd) | UART transmitter, 8N1 |
@@ -194,6 +270,7 @@ Warnings after time 0 are still reported.
 | :-- | :-- |
 | Lock-step equivalence (`tb_equiv`) | `TEST PASSED`: 4 parameter sets, about 300 000 cycles each, 0 output mismatches, 0 warnings |
 | Fault injection, both testbenches on 4 mutants | Identical results on every mutant (see "Testbenches") |
+| `NOCLIP` added to `CONFIG_LMMI` (2026-11-16) | No effect: both implementations rebuilt with and without it give identical map reports (Config LMMI 1/1; 216/211 LUT4, 123 registers, 2/1 EBR), identical worst setup slack (+35.901 / +36.072 ns) and configuration data identical byte for byte after the text header. Simulations repeated: all `TEST PASSED`, equivalence 0 mismatches, both top levels elaborate with 0 errors |
 | Bitstreams of the restructured project | Configuration data identical, byte for byte after the text header, to the board-tested builds: `impl_sv` to the `main` build (`41439d8`) tested on 2026-11-14, `impl_vhdl` to a rebuild of the board-tested VHDL sources (`f5504f3`) |
 
 The resource and slack differences come from synthesis packing the two message ROMs differently
@@ -368,6 +445,14 @@ SRAM while the SystemVerilog build in the flash was running. The capture shows t
 SystemVerilog build refreshing, the VHDL banner after the load, its `LSC_REFRESH` 10 s later and
 the SystemVerilog build booting from the flash again
 ([`logs/uart_dual_vhdl_sram_over_sv_flash_20261114.bin`](logs/uart_dual_vhdl_sram_over_sv_flash_20261114.bin), 174 bytes).
+
+With `NOCLIP` on `CONFIG_LMMI` (2026-11-16, both implementations loaded into SRAM in turn, the
+SystemVerilog build in the flash):
+
+| Implementation | Banner after the load | Its `LSC_REFRESH` | Flash build boots | Capture |
+| :-- | :-- | :-- | :-- | :-- |
+| SystemVerilog | 13:01:52.8 | 13:02:02.5 | 13:02:04.3 | [`logs/uart_noclip_sv_sram_20261116.bin`](logs/uart_noclip_sv_sram_20261116.bin) (174 bytes) |
+| VHDL-2008 | 13:02:25.9 | 13:02:35.6 | 13:02:37.4 | [`logs/uart_noclip_vhdl_sram_20261116.bin`](logs/uart_noclip_vhdl_sram_20261116.bin) (174 bytes) |
 
 ## Open items
 

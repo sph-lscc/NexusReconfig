@@ -67,6 +67,7 @@ architecture rtl of nexus_reconfig_top is
     end component CONFIG_LMMI;
 
     attribute syn_noprune : boolean;
+    attribute NOCLIP      : boolean;
 
     signal sys_clk          : std_logic;
     signal rst_n            : std_logic;
@@ -80,7 +81,17 @@ architecture rtl of nexus_reconfig_top is
     signal lmmi_wdata       : std_logic_vector(7 downto 0);
     signal lmmi_rdata       : std_logic_vector(7 downto 0);
 
+    -- CONFIG_LMMI keep attributes:
+    --   syn_noprune  Synplify keeps the primitive even if its outputs drive no pin.
+    --   NOCLIP       map keeps the primitive and the logic connected to it.
+    -- In this design the refresh logic also drives the UART and the LEDs, so map
+    -- keeps it without NOCLIP (same bitstream with and without it). NOCLIP is a
+    -- safeguard for variants in which no device pin depends on the refresh logic
+    -- (for example branch sv-led-blink): there, map removes CONFIG_LMMI and the
+    -- refresh logic as unused without it. See Readme, "Keeping CONFIG_LMMI:
+    -- syn_noprune and NOCLIP".
     attribute syn_noprune of config_lmmi_inst : label is true;
+    attribute NOCLIP      of config_lmmi_inst : label is true;
 
 begin
 
