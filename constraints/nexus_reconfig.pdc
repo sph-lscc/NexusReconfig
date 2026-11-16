@@ -16,14 +16,11 @@ generate_uncertainty
 ldc_set_sysconfig {INITN_PORT=DISABLE}
 
 # Pins
-ldc_set_location -site {A8}  [get_ports {led_o[0]}]
-ldc_set_location -site {B8}  [get_ports {led_o[1]}]
+ldc_set_location -site {A8}  [get_ports led_o]
 ldc_set_location -site {B2}  [get_ports btn_ni]
-ldc_set_location -site {F11} [get_ports txd_o]
 ldc_set_port -iobuf {PULLMODE=UP} [get_ports btn_ni]
 
-# Asynchronous I/O: the button goes through a two-stage synchroniser; the LEDs
-# and the UART line have no timing relationship to an external clock.
+# Asynchronous I/O: the button goes through a two-stage synchroniser; the LED
+# has no timing relationship to an external clock.
 set_false_path -from [get_ports btn_ni]
-set_false_path -to   [get_ports {led_o[*]}]
-set_false_path -to   [get_ports txd_o]
+set_false_path -to   [get_ports led_o]

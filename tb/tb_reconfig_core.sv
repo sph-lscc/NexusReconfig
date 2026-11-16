@@ -1,9 +1,8 @@
 // -----------------------------------------------------------------------------
 // tb_reconfig_core.sv
 //
-// Self-checking testbench for reconfig_core / lmmi_refresh / uart_tx.
-// It uses only the DUT ports, so it runs unchanged against both
-// implementations: src/sv/*.sv (SystemVerilog) and src/vhdl/*.vhd (VHDL-2008).
+// Self-checking testbench for reconfig_core / lmmi_refresh and led_blink
+// (sv-led-blink branch: no UART, no LEDs in reconfig_core).
 //
 // The CONFIG_LMMI primitive has no supported simulation model
 // (FPGA-TN-02099-3.7, Table D.1 note 1), so lmmi_target_model below stands in
@@ -11,13 +10,15 @@
 // accepted on a clock edge with lmmi_request && lmmi_ready, and lmmi_ready is
 // randomly withheld to exercise back-pressure.
 //
-// Three DUT instances run in parallel, with scaled timing (1 MHz clock):
-//   A  auto-refresh timer, button released:  banner, refresh message,
-//      LSC_REFRESH 79 00 00 00, then the failure flash on led[0] because the
-//      model does not reconfigure the device.
-//   B  timer disabled, button pressed once:  same sequence, triggered by the
-//      button.
-//   C  timer disabled, button stuck low:     banner only, no LMMI transfer.
+// Instances, with scaled timing (1 MHz clock):
+//   A  auto-refresh timer (5 ms), button released: LSC_REFRESH 79 00 00 00,
+//      not before the timer has expired.
+//   B  timer disabled, button pressed once at 12 ms: the same command, not
+//      before the press.
+//   C  timer disabled, button stuck low: no LMMI transfer.
+//   L  led_blink (2 ms half period) and an active-low copy: they flash from
+//      time 0 with no reset, at the set rate, and are unaffected by the
+//      refresh logic (they share only the clock).
 // -----------------------------------------------------------------------------
 `timescale 1ns/1ps
 
@@ -71,132 +72,97 @@ module lmmi_target_model #(
     endfunction
 endmodule
 
-module uart_monitor #(
-    parameter string NAME = "uart",
-    parameter int    BIT_NS = 20_000
-) (
-    input logic rxd
-);
-    string text = "";
-    initial begin
-        byte c;
-        forever begin
-            @(negedge rxd);
-            #(BIT_NS / 2);
-            if (rxd !== 1'b0) continue;            // glitch, not a start bit
-            for (int i = 0; i < 8; i++) begin
-                #(BIT_NS);
-                c[i] = rxd;
-            end
-            #(BIT_NS);
-            if (rxd !== 1'b1) $display("[%s] ERROR: framing error", NAME);
-            text = {text, string'(c)};
-        end
-    end
-endmodule
-
 module tb_reconfig_core;
 
-    localparam int CLK_HZ  = 1_000_000;
-    localparam int BAUD    = 50_000;
-    localparam int BIT_NS  = 1_000_000_000 / BAUD;
-    localparam string MSG0 = "\015\012NexusReconfig: FPGA configured\015\012";
-    localparam string MSG1 = "NexusReconfig: issuing LSC_REFRESH\015\012";
+    localparam int CLK_HZ   = 1_000_000;
+    localparam int HALF_MS  = 2;
 
     logic clk = 1'b0;
     always #500 clk = ~clk;                         // 1 MHz
 
     int errors = 0;
-    int past_a = 0, past_b = 0;
-    bit b_btn_q = 1'b1;
+    realtime a_first_req = -1, b_first_req = -1, b_press = -1;
 
     // ---------------- instance A: auto refresh ----------------
     logic       a_btn = 1'b1;
-    logic [1:0] a_led;
-    logic       a_txd, a_req, a_wr, a_rdy, a_done;
+    logic       a_req, a_wr, a_rdy, a_done;
     logic [7:0] a_off, a_wd;
 
-    reconfig_core #(.CLK_HZ(CLK_HZ), .BAUD(BAUD), .AUTO_REFRESH_MS(5), .BOOT_LED_MS(2),
-                    .DEBOUNCE_MS(2), .POR_CYCLES(16)) dut_a (
-        .clk_i(clk), .rst_no(), .btn_ni(a_btn), .led_o(a_led), .txd_o(a_txd),
+    reconfig_core #(.CLK_HZ(CLK_HZ), .AUTO_REFRESH_MS(5), .DEBOUNCE_MS(2),
+                    .POR_CYCLES(16)) dut_a (
+        .clk_i(clk), .rst_no(), .btn_ni(a_btn),
         .lmmi_request_o(a_req), .lmmi_wr_rdn_o(a_wr), .lmmi_offset_o(a_off),
         .lmmi_wdata_o(a_wd), .lmmi_ready_i(a_rdy), .refresh_done_o(a_done));
     lmmi_target_model #(.NAME("A lmmi"), .SEED(11)) lmmi_a (
         .clk(clk), .request(a_req), .wr_rdn(a_wr), .offset(a_off), .wdata(a_wd), .ready(a_rdy));
-    uart_monitor #(.NAME("A uart"), .BIT_NS(BIT_NS)) uart_a (.rxd(a_txd));
 
     // ---------------- instance B: button ----------------
     logic       b_btn = 1'b1;
-    logic [1:0] b_led;
-    logic       b_txd, b_req, b_wr, b_rdy, b_done;
+    logic       b_req, b_wr, b_rdy, b_done;
     logic [7:0] b_off, b_wd;
 
-    reconfig_core #(.CLK_HZ(CLK_HZ), .BAUD(BAUD), .AUTO_REFRESH_MS(0), .BOOT_LED_MS(2),
-                    .DEBOUNCE_MS(2), .POR_CYCLES(16)) dut_b (
-        .clk_i(clk), .rst_no(), .btn_ni(b_btn), .led_o(b_led), .txd_o(b_txd),
+    reconfig_core #(.CLK_HZ(CLK_HZ), .AUTO_REFRESH_MS(0), .DEBOUNCE_MS(2),
+                    .POR_CYCLES(16)) dut_b (
+        .clk_i(clk), .rst_no(), .btn_ni(b_btn),
         .lmmi_request_o(b_req), .lmmi_wr_rdn_o(b_wr), .lmmi_offset_o(b_off),
         .lmmi_wdata_o(b_wd), .lmmi_ready_i(b_rdy), .refresh_done_o(b_done));
     lmmi_target_model #(.NAME("B lmmi"), .SEED(23)) lmmi_b (
         .clk(clk), .request(b_req), .wr_rdn(b_wr), .offset(b_off), .wdata(b_wd), .ready(b_rdy));
-    uart_monitor #(.NAME("B uart"), .BIT_NS(BIT_NS)) uart_b (.rxd(b_txd));
 
     // ---------------- instance C: button stuck low ----------------
     logic       c_btn = 1'b0;
-    logic [1:0] c_led;
-    logic       c_txd, c_req, c_wr, c_rdy, c_done;
+    logic       c_req, c_wr, c_rdy, c_done;
     logic [7:0] c_off, c_wd;
 
-    reconfig_core #(.CLK_HZ(CLK_HZ), .BAUD(BAUD), .AUTO_REFRESH_MS(0), .BOOT_LED_MS(2),
-                    .DEBOUNCE_MS(2), .POR_CYCLES(16)) dut_c (
-        .clk_i(clk), .rst_no(), .btn_ni(c_btn), .led_o(c_led), .txd_o(c_txd),
+    reconfig_core #(.CLK_HZ(CLK_HZ), .AUTO_REFRESH_MS(0), .DEBOUNCE_MS(2),
+                    .POR_CYCLES(16)) dut_c (
+        .clk_i(clk), .rst_no(), .btn_ni(c_btn),
         .lmmi_request_o(c_req), .lmmi_wr_rdn_o(c_wr), .lmmi_offset_o(c_off),
         .lmmi_wdata_o(c_wd), .lmmi_ready_i(c_rdy), .refresh_done_o(c_done));
     lmmi_target_model #(.NAME("C lmmi"), .SEED(37)) lmmi_c (
         .clk(clk), .request(c_req), .wr_rdn(c_wr), .offset(c_off), .wdata(c_wd), .ready(c_rdy));
-    uart_monitor #(.NAME("C uart"), .BIT_NS(BIT_NS)) uart_c (.rxd(c_txd));
 
-    // ---------------- checks during the run ----------------
-    // The refresh must not start before the refresh message has fully left the UART.
+    // ---------------- instance L: LED flasher ----------------
+    logic l_led, l_led_n;
+
+    led_blink #(.CLK_HZ(CLK_HZ), .HALF_MS(HALF_MS), .ACTIVE_LOW(1'b0)) dut_l (
+        .clk_i(clk), .led_o(l_led));
+    led_blink #(.CLK_HZ(CLK_HZ), .HALF_MS(HALF_MS), .ACTIVE_LOW(1'b1)) dut_ln (
+        .clk_i(clk), .led_o(l_led_n));
+
+    // ---------------- event log ----------------
     always @(posedge clk) begin
-        if (a_req && uart_a.text != {MSG0, MSG1}) begin
-            $display("ERROR: A: LMMI request before the UART message completed"); errors++;
+        if (a_req && a_first_req < 0) begin
+            a_first_req = $realtime;
+            $display("[A] %8.3f ms: first LMMI request", $realtime / 1.0e6);
         end
-        if (b_req && uart_b.text != {MSG0, MSG1}) begin
-            $display("ERROR: B: LMMI request before the UART message completed"); errors++;
+        if (b_req && b_first_req < 0) begin
+            b_first_req = $realtime;
+            $display("[B] %8.3f ms: first LMMI request", $realtime / 1.0e6);
         end
     end
 
-    // Event log (time in ms). Uses only the DUT ports, so the same testbench
-    // runs against the SystemVerilog and the VHDL implementation.
-    always @(posedge clk) begin
-        if (uart_a.text.len() != past_a) begin
-            if (uart_a.text == MSG0)         $display("[A] %8.3f ms: banner received", $realtime / 1.0e6);
-            if (uart_a.text == {MSG0, MSG1}) $display("[A] %8.3f ms: refresh message received", $realtime / 1.0e6);
-        end
-        if (uart_b.text.len() != past_b) begin
-            if (uart_b.text == MSG0)         $display("[B] %8.3f ms: banner received", $realtime / 1.0e6);
-            if (uart_b.text == {MSG0, MSG1}) $display("[B] %8.3f ms: refresh message received", $realtime / 1.0e6);
-        end
-        if (b_btn_q && !b_btn)               $display("[B] %8.3f ms: button pressed", $realtime / 1.0e6);
-        past_a  = uart_a.text.len();
-        past_b  = uart_b.text.len();
-        b_btn_q = b_btn;
-    end
-
-    // led[0] must be on during the boot window.
-    initial begin
-        #(1_000_000);                               // 1 ms: inside BOOT_LED_MS = 2 ms
-        if (a_led[0] !== 1'b1) begin $display("ERROR: A: boot LED not on at 1 ms"); errors++; end
-        #(3_000_000);                               // 4 ms: after the boot window
-        if (a_led[0] !== 1'b0) begin $display("ERROR: A: boot LED still on at 4 ms"); errors++; end
-    end
-
-    // Button press for instance B: after the banner (6.8 ms) and arming.
+    // Button press for instance B, after the arming (released input seen).
     initial begin
         #(12_000_000);
-        b_btn = 1'b0;
+        b_btn   = 1'b0;
+        b_press = $realtime;
+        $display("[B] %8.3f ms: button pressed", $realtime / 1.0e6);
         #(5_000_000);
         b_btn = 1'b1;
+    end
+
+    // LED: record every edge of l_led, check level and complement.
+    realtime l_edges[$];
+    always @(l_led) if ($realtime > 0) l_edges.push_back($realtime);
+    always @(posedge clk) begin
+        if (l_led_n !== ~l_led) begin
+            $display("ERROR: L: active-low output is not the complement at %0t", $realtime); errors++;
+        end
+    end
+    initial begin
+        #(1);
+        if (l_led !== 1'b0) begin $display("ERROR: L: LED not off at time 0"); errors++; end
     end
 
     function automatic void check(string name, bit cond);
@@ -204,35 +170,28 @@ module tb_reconfig_core;
         else         $display("ok   : %s", name);
     endfunction
 
-    task automatic count_toggles(input logic sig_is_a, output int n);
-        logic prev;
-        n = 0;
-        prev = sig_is_a ? a_led[0] : b_led[0];
-        repeat (150_000) begin               // 150 ms: fast flash toggles every 64 ms
-            @(posedge clk);
-            if ((sig_is_a ? a_led[0] : b_led[0]) !== prev) n++;
-            prev = sig_is_a ? a_led[0] : b_led[0];
-        end
-    endtask
-
     initial begin
-        int ta, tb;
+        bit periods_ok;
         #(40_000_000);                              // 40 ms
-        count_toggles(1'b1, ta);
-        count_toggles(1'b0, tb);
 
-        check("A: UART text = banner + refresh message", uart_a.text == {MSG0, MSG1});
         check("A: LSC_REFRESH 79 00 00 00 written, nothing else", lmmi_a.refresh_seen());
         check("A: refresh_done asserted", a_done === 1'b1);
-        check("A: led[0] fast flash after unexecuted refresh", ta >= 2);
-        check("B: UART text = banner + refresh message", uart_b.text == {MSG0, MSG1});
+        check("A: refresh not before the 5 ms timer (POR 16 us + 5 ms)",
+              a_first_req >= 5_016_000.0);
         check("B: LSC_REFRESH 79 00 00 00 written, nothing else", lmmi_b.refresh_seen());
         check("B: refresh_done asserted", b_done === 1'b1);
-        check("B: led[0] fast flash after unexecuted refresh", tb >= 2);
-        check("C: UART text = banner only", uart_c.text == MSG0);
+        check("B: refresh only after the button press (+ 2 ms debounce)",
+              b_press > 0 && b_first_req >= b_press + 2_000_000.0);
         check("C: no LMMI transfer with button stuck low", lmmi_c.n_bytes == 0);
         check("C: refresh_done not asserted", c_done === 1'b0);
-        check("A/B/C: heartbeat running", a_led[1] !== 1'bx && b_led[1] !== 1'bx);
+
+        // 40 ms / 2 ms half period = 20 edges. The counter starts at 0 and the
+        // LED toggles on the 2000th rising clock edge (1999.5 us), then every 2 ms.
+        periods_ok = (l_edges.size() == 20);
+        foreach (l_edges[i])
+            if (l_edges[i] != (i + 1) * HALF_MS * 1_000_000.0 - 500.0) periods_ok = 0;
+        check($sformatf("L: LED toggles every %0d ms from time 0 (%0d edges)", HALF_MS,
+                        l_edges.size()), periods_ok);
 
         errors += lmmi_a.errors + lmmi_b.errors + lmmi_c.errors;
         if (errors == 0) $display("TEST PASSED");

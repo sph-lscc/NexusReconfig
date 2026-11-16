@@ -7,6 +7,11 @@
 --
 -- Target: LFD2NX-40-8BG196C on the CRUVI Certus-NX board.
 --
+-- sv-led-blink variant: no UART and no status LEDs from the reconfiguration
+-- logic. A separate free-running flasher (led_blink) drives one LED; it shares
+-- only the clock with the reconfiguration logic. VHDL-2008 conversion of
+-- src/sv/nexus_reconfig_top.sv.
+--
 -- Clocking follows FPGA-TN-02099-3.7 Appendix D.2 (Figure D.2): the OSC IP's
 -- hf_clk_out_o is the system clock and the LMMI clock source; the CONFIG_LMMI
 -- LMMICLK and LMMIRESETN pins must be driven from the OSC IP's lmmi_clk_o and
@@ -18,13 +23,13 @@ use ieee.std_logic_1164.all;
 
 entity nexus_reconfig_top is
     generic (
-        AUTO_REFRESH_MS : natural := 10_000;    -- 0 = button only
-        LED_ACTIVE_LOW  : boolean := false
+        AUTO_REFRESH_MS : natural  := 10_000;   -- 0 = button only
+        LED_HALF_MS     : positive := 500;      -- LED flash: on and off time (1 Hz)
+        LED_ACTIVE_LOW  : boolean  := false
     );
     port (
-        btn_ni : in  std_logic;                     -- reconfiguration request button, active low
-        led_o  : out std_logic_vector(1 downto 0);  -- (0) fresh-configuration indicator, (1) heartbeat
-        txd_o  : out std_logic                      -- UART 115200 8N1
+        btn_ni : in  std_logic;     -- reconfiguration request button, active low
+        led_o  : out std_logic      -- free-running flasher, independent of the refresh logic
     );
 end entity nexus_reconfig_top;
 
@@ -81,15 +86,15 @@ architecture rtl of nexus_reconfig_top is
     signal lmmi_wdata       : std_logic_vector(7 downto 0);
     signal lmmi_rdata       : std_logic_vector(7 downto 0);
 
-    -- CONFIG_LMMI keep attributes:
-    --   syn_noprune  Synplify keeps the primitive even if its outputs drive no pin.
-    --   NOCLIP       map keeps the primitive and the logic connected to it.
-    -- In this design the refresh logic also drives the UART and the LEDs, so map
-    -- keeps it without NOCLIP (same bitstream with and without it). NOCLIP is a
-    -- safeguard for variants in which no device pin depends on the refresh logic
-    -- (for example branch sv-led-blink): there, map removes CONFIG_LMMI and the
-    -- refresh logic as unused without it. See Readme, "Keeping CONFIG_LMMI:
-    -- syn_noprune and NOCLIP".
+    -- Without the UART and LEDs, no device pin depends on reconfig_core: the
+    -- loop reconfig_core -> CONFIG_LMMI -> LMMIREADY -> reconfig_core has no
+    -- valid output. Two attributes on the instance label keep it:
+    --   syn_noprune  Synplify keeps the primitive although its outputs drive
+    --                no pin (without it, CONFIG_LMMI is not in the netlist);
+    --   NOCLIP       map keeps the primitive and the logic connected to it
+    --                (without it, map removes the loop as unused logic).
+    -- Synplify passes NOCLIP to map as (* NOCLIP=1 *) on the instance in the
+    -- .vm netlist. See Readme, "Keeping the refresh logic: NOCLIP".
     attribute syn_noprune of config_lmmi_inst : label is true;
     attribute NOCLIP      of config_lmmi_inst : label is true;
 
@@ -109,22 +114,29 @@ begin
     u_core : entity work.reconfig_core
         generic map (
             CLK_HZ          => SYS_CLK_HZ,
-            BAUD            => 115_200,
-            AUTO_REFRESH_MS => AUTO_REFRESH_MS,
-            LED_ACTIVE_LOW  => LED_ACTIVE_LOW
+            AUTO_REFRESH_MS => AUTO_REFRESH_MS
         )
         port map (
             clk_i          => sys_clk,
             rst_no         => rst_n,
             btn_ni         => btn_ni,
-            led_o          => led_o,
-            txd_o          => txd_o,
             lmmi_request_o => lmmi_request,
             lmmi_wr_rdn_o  => lmmi_wr_rdn,
             lmmi_offset_o  => lmmi_offset,
             lmmi_wdata_o   => lmmi_wdata,
             lmmi_ready_i   => lmmi_ready,
             refresh_done_o => open
+        );
+
+    u_led_blink : entity work.led_blink
+        generic map (
+            CLK_HZ     => SYS_CLK_HZ,
+            HALF_MS    => LED_HALF_MS,
+            ACTIVE_LOW => LED_ACTIVE_LOW
+        )
+        port map (
+            clk_i => sys_clk,
+            led_o => led_o
         );
 
     config_lmmi_inst : CONFIG_LMMI

@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------------------
-# Create the NexusReconfig Radiant project in lscc/ with two implementations of
-# the same design, sharing the device, strategy, oscillator IP and constraints:
+# Create the NexusReconfig Radiant project in lscc/ (sv-led-blink branch) with
+# two implementations of the same design, sharing the device, strategy, oscillator IP and constraints:
 #   impl_sv    SystemVerilog sources in src/sv/   (default implementation)
 #   impl_vhdl  VHDL-2008 sources in src/vhdl/     (the OSC IP stays Verilog)
 # Run on the build host with Radiant 2026.1.1:
@@ -22,10 +22,10 @@ prj_create_impl impl_vhdl -dir impl_vhdl -strategy Strategy1 -synthesis synplify
 # the SystemVerilog synthesis.
 prj_set_strategy_value -strategy Strategy1 syn_vhdl2008=True lse_vhdl2008=True
 
-set SOURCES(impl_sv)   {src/sv/uart_tx.sv src/sv/lmmi_refresh.sv src/sv/reconfig_core.sv
+set SOURCES(impl_sv)   {src/sv/lmmi_refresh.sv src/sv/reconfig_core.sv src/sv/led_blink.sv
                         src/sv/nexus_reconfig_top.sv}
-set SOURCES(impl_vhdl) {src/vhdl/nexus_reconfig_pkg.vhd src/vhdl/uart_tx.vhd
-                        src/vhdl/lmmi_refresh.vhd src/vhdl/reconfig_core.vhd
+set SOURCES(impl_vhdl) {src/vhdl/nexus_reconfig_pkg.vhd src/vhdl/lmmi_refresh.vhd
+                        src/vhdl/reconfig_core.vhd src/vhdl/led_blink.vhd
                         src/vhdl/nexus_reconfig_top.vhd}
 
 foreach impl {impl_sv impl_vhdl} {

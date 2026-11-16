@@ -11,7 +11,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=$ROOT/sim/mcp_sim/sv_ref
 rm -rf "$OUT"
 mkdir -p "$OUT"
-for m in uart_tx lmmi_refresh reconfig_core; do
-    sed -E 's/\b(reconfig_core|lmmi_refresh|uart_tx)\b/ref_\1/g' "$ROOT/src/sv/$m.sv" > "$OUT/ref_$m.sv"
+for m in lmmi_refresh reconfig_core led_blink; do
+    sed -E 's/\b(reconfig_core|lmmi_refresh|led_blink)\b/ref_\1/g' "$ROOT/src/sv/$m.sv" > "$OUT/ref_$m.sv"
 done
 echo "SystemVerilog sources with ref_ prefix written to $OUT"
