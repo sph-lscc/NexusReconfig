@@ -103,9 +103,8 @@ attribute NOCLIP      of config_lmmi_inst : label is true;
 refresh logic that drives it. `LSC_REFRESH` has an effect on the device, but not one the tools
 can see. Typical cases:
 
-- the refresh logic has no status outputs at all (no UART, no LEDs driven by the sequencer), as
-  on branch `sv-led-blink`, where the only output is an LED flasher with no connection to the
-  refresh logic;
+- the refresh logic has no status outputs at all (no UART, no LEDs driven by the sequencer),
+  for example when the only output is an LED flasher with no connection to the refresh logic;
 - the only outputs that depend on the refresh logic are removed later, for example a debug UART
   taken out of a production build;
 - the `CONFIG_LMMI` read data (`LMMIRDATA`, `LMMIRDATAVALID`) is used only inside a loop that
@@ -127,8 +126,8 @@ simulation and elaboration cannot show it. Check the `Config LMMI` line after ev
 design that uses `CONFIG_LMMI`.
 
 **Forms that work and forms that do not** (determined by building every variant through
-synthesis and map with Radiant 2026.1.1 on the `sv-led-blink` design, where the attributes are
-required; full table in that branch's `Readme.md`):
+synthesis and map with Radiant 2026.1.1, on a variant of this design without the UART and
+status LEDs, where the attributes are required):
 
 - Works: `syn_noprune` + `NOCLIP` on the instance (SystemVerilog, VHDL, and with LSE).
 - Works: `syn_keep` + `NOCLIP` on a net of the loop; one net is enough (for example
