@@ -3,7 +3,7 @@
 //
 // Self-checking testbench for reconfig_core / lmmi_refresh / uart_tx.
 // It uses only the DUT ports, so it runs unchanged against both
-// implementations: src/sv/*.sv (SystemVerilog) and src/vhdl/*.vhd (VHDL-2008).
+// implementations: src/rtl/sv/*.sv (SystemVerilog) and src/rtl/vhdl/*.vhd (VHDL-2008).
 //
 // The CONFIG_LMMI primitive has no supported simulation model
 // (FPGA-TN-02099-3.7, Table D.1 note 1), so lmmi_target_model below stands in

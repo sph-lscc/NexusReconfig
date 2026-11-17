@@ -5,8 +5,8 @@
 | Device | Certus-NX LFD2NX-40-8BG196C |
 | Board | CRUVI Certus-NX board |
 | Software | Radiant 2026.1.1 (Synplify Pro), Questa (bundled with Radiant) |
-| HDL | Two equivalent implementations: SystemVerilog ([`src/sv/`](src/sv/)) and VHDL-2008 ([`src/vhdl/`](src/vhdl/)); testbenches in both languages; OSC IP Verilog |
-| IP | osc 1.4.0 ([`lscc/osc0/`](lscc/osc0/)) |
+| HDL | Two equivalent implementations: SystemVerilog ([`src/rtl/sv/`](src/rtl/sv/)) and VHDL-2008 ([`src/rtl/vhdl/`](src/rtl/vhdl/)); testbenches in both languages; OSC IP Verilog |
+| IP | osc 1.4.0 ([`src/ip/osc0/`](src/ip/osc0/)) |
 
 ## Notes
 
@@ -20,7 +20,7 @@
   restart itself, its bitstream must be in the flash (see "Running on the board").
 
 - The design exists in two languages, kept side by side on one branch: SystemVerilog in
-  [`src/sv/`](src/sv/) and VHDL-2008 in [`src/vhdl/`](src/vhdl/). One Radiant project builds either of them: the
+  [`src/rtl/sv/`](src/rtl/sv/) and VHDL-2008 in [`src/rtl/vhdl/`](src/rtl/vhdl/). One Radiant project builds either of them: the
   implementation `impl_sv` (project default) or `impl_vhdl`. Both share the device settings,
   strategy, oscillator IP and constraints. The two implementations are checked against each
   other cycle by cycle in simulation (see "VHDL-2008 implementation"), and both were tested on
@@ -79,12 +79,12 @@ needed to select an alternate image.
 The `CONFIG_LMMI` instance in both top levels carries two attributes:
 
 ```systemverilog
-// src/sv/nexus_reconfig_top.sv
+// src/rtl/sv/nexus_reconfig_top.sv
 CONFIG_LMMI #(.LMMI_EN ("EN")) config_lmmi_inst ( ... ) /* synthesis syn_noprune=1 NOCLIP=1 */;
 ```
 
 ```vhdl
--- src/vhdl/nexus_reconfig_top.vhd (architecture declarative part)
+-- src/rtl/vhdl/nexus_reconfig_top.vhd (architecture declarative part)
 attribute syn_noprune : boolean;
 attribute NOCLIP      : boolean;
 attribute syn_noprune of config_lmmi_inst : label is true;
@@ -133,19 +133,19 @@ in `lscc/impl_<L>/nexus_reconfig_impl_<L>.vm`, which is what map reads.
 
 | Path | Content |
 | :-- | :-- |
-| [`src/sv/nexus_reconfig_top.sv`](src/sv/nexus_reconfig_top.sv), [`src/vhdl/nexus_reconfig_top.vhd`](src/vhdl/nexus_reconfig_top.vhd) | Top level: OSC IP, `CONFIG_LMMI` primitive (with `syn_noprune` and `NOCLIP`), `reconfig_core` |
-| [`src/sv/reconfig_core.sv`](src/sv/reconfig_core.sv), [`src/vhdl/reconfig_core.vhd`](src/vhdl/reconfig_core.vhd) | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
-| [`src/sv/lmmi_refresh.sv`](src/sv/lmmi_refresh.sv), [`src/vhdl/lmmi_refresh.vhd`](src/vhdl/lmmi_refresh.vhd) | LMMI host that writes `LSC_REFRESH` |
-| [`src/sv/uart_tx.sv`](src/sv/uart_tx.sv), [`src/vhdl/uart_tx.vhd`](src/vhdl/uart_tx.vhd) | UART transmitter, 8N1 |
-| [`src/vhdl/nexus_reconfig_pkg.vhd`](src/vhdl/nexus_reconfig_pkg.vhd) | VHDL only: `clog2` and string-to-ROM helper functions |
-| [`lscc/osc0/`](lscc/osc0/) | Generated OSC IP (25 MHz HF clock, LMMI clock path enabled), used by both implementations |
+| [`src/rtl/sv/nexus_reconfig_top.sv`](src/rtl/sv/nexus_reconfig_top.sv), [`src/rtl/vhdl/nexus_reconfig_top.vhd`](src/rtl/vhdl/nexus_reconfig_top.vhd) | Top level: OSC IP, `CONFIG_LMMI` primitive (with `syn_noprune` and `NOCLIP`), `reconfig_core` |
+| [`src/rtl/sv/reconfig_core.sv`](src/rtl/sv/reconfig_core.sv), [`src/rtl/vhdl/reconfig_core.vhd`](src/rtl/vhdl/reconfig_core.vhd) | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
+| [`src/rtl/sv/lmmi_refresh.sv`](src/rtl/sv/lmmi_refresh.sv), [`src/rtl/vhdl/lmmi_refresh.vhd`](src/rtl/vhdl/lmmi_refresh.vhd) | LMMI host that writes `LSC_REFRESH` |
+| [`src/rtl/sv/uart_tx.sv`](src/rtl/sv/uart_tx.sv), [`src/rtl/vhdl/uart_tx.vhd`](src/rtl/vhdl/uart_tx.vhd) | UART transmitter, 8N1 |
+| [`src/rtl/vhdl/nexus_reconfig_pkg.vhd`](src/rtl/vhdl/nexus_reconfig_pkg.vhd) | VHDL only: `clog2` and string-to-ROM helper functions |
+| [`src/ip/osc0/`](src/ip/osc0/) | Generated OSC IP (25 MHz HF clock, LMMI clock path enabled), used by both implementations |
 | [`lscc/nexus_reconfig.rdf`](lscc/nexus_reconfig.rdf) | Radiant project with the implementations `impl_sv` (default) and `impl_vhdl` |
 | [`lscc/nexus_reconfig_*_{sv,vhdl}_ftusb0.xcf`](lscc/) | Programmer chain files per implementation (see "Running on the board") |
-| [`constraints/nexus_reconfig.pdc`](constraints/nexus_reconfig.pdc) | Clock, pins, INITN release, false paths (post-synthesis) |
-| [`constraints/nexus_reconfig.sdc`](constraints/nexus_reconfig.sdc) | Clock for synthesis |
-| [`tb/tb_reconfig_core.sv`](tb/tb_reconfig_core.sv) | Self-checking SystemVerilog testbench with an LMMI target model and UART monitors (ports only: runs against either implementation) |
-| [`tb/tb_reconfig_core.vhd`](tb/tb_reconfig_core.vhd) | The same testbench in VHDL-2008 (ports only, component binding: runs against either implementation) |
-| [`tb/tb_equiv.sv`](tb/tb_equiv.sv) | Lock-step equivalence testbench: VHDL-2008 against SystemVerilog |
+| [`src/cst/nexus_reconfig.pdc`](src/cst/nexus_reconfig.pdc) | Clock, pins, INITN release, false paths (post-synthesis) |
+| [`src/cst/nexus_reconfig.sdc`](src/cst/nexus_reconfig.sdc) | Clock for synthesis |
+| [`src/tb/tb_reconfig_core.sv`](src/tb/tb_reconfig_core.sv) | Self-checking SystemVerilog testbench with an LMMI target model and UART monitors (ports only: runs against either implementation) |
+| [`src/tb/tb_reconfig_core.vhd`](src/tb/tb_reconfig_core.vhd) | The same testbench in VHDL-2008 (ports only, component binding: runs against either implementation) |
+| [`src/tb/tb_equiv.sv`](src/tb/tb_equiv.sv) | Lock-step equivalence testbench: VHDL-2008 against SystemVerilog |
 | [`sim/sim_sv_filelist.f`](sim/sim_sv_filelist.f) | SystemVerilog design, SystemVerilog testbench |
 | [`sim/sim_vhdl_filelist.f`](sim/sim_vhdl_filelist.f) | VHDL design, VHDL testbench |
 | [`sim/sim_sv_vhdtb_filelist.f`](sim/sim_sv_vhdtb_filelist.f) | SystemVerilog design, VHDL testbench |
@@ -155,7 +155,7 @@ in `lscc/impl_<L>/nexus_reconfig_impl_<L>.vm`, which is what map reads.
 | [`sim/run_vhdl.do`](sim/run_vhdl.do) | Questa run script for the simulations with VHDL design units |
 | [`scripts/create_project.tcl`](scripts/create_project.tcl) | Re-creates the Radiant project with both implementations (VHDL-2008 enabled for Synplify Pro and LSE) |
 | [`scripts/build_all.tcl`](scripts/build_all.tcl) | Builds both implementations |
-| [`scripts/make_sv_ref.sh`](scripts/make_sv_ref.sh) | Copies [`src/sv/`](src/sv/) with `ref_` module names into `sim/mcp_sim/sv_ref/` for `tb_equiv` |
+| [`scripts/make_sv_ref.sh`](scripts/make_sv_ref.sh) | Copies [`src/rtl/sv/`](src/rtl/sv/) with `ref_` module names into `sim/mcp_sim/sv_ref/` for `tb_equiv` |
 | [`scripts/make_tb_check.sh`](scripts/make_tb_check.sh) | Prepares the fault-injection check of both testbenches in `sim/mcp_sim/tb_check/` |
 | [`logs/`](logs/) | Programmer logs and raw UART captures of the hardware tests |
 | [`docs/`](docs/) | FPGA-TN-02099 ([`sysCONFIG`](docs/FPGA-TN-02099-sysCONFIG-User-Guide-Nexus.pdf)) and FPGA-TN-02145 ([`Multi-Boot`](docs/FPGA-TN-02145-Multi-Boot-User-Guide-Nexus.pdf)) user guides, block diagram ([`block_diagram.svg`](docs/block_diagram.svg)) |
@@ -171,7 +171,7 @@ in `lscc/impl_<L>/nexus_reconfig_impl_<L>.vm`, which is what map reads.
 
 Pins come from the CRUVI board design
 (`/mnt/lscc/devel/Boards/CertusNX/cruvi/CruviDemo/test_certus/test_certus.pdc`). B2 is the INITN
-sysCONFIG pin; like the CRUVI design, the [`.pdc`](constraints/nexus_reconfig.pdc) releases it with
+sysCONFIG pin; like the CRUVI design, the [`.pdc`](src/cst/nexus_reconfig.pdc) releases it with
 `ldc_set_sysconfig {INITN_PORT=DISABLE}`.
 
 ### Parameters (`nexus_reconfig_top`)
@@ -186,10 +186,10 @@ sysCONFIG pin; like the CRUVI design, the [`.pdc`](constraints/nexus_reconfig.pd
 All Lattice tools run on the build host `lb` with Radiant 2026.1.1, through the `lattice-prompt`
 MCP server.
 
-1. **Oscillator IP** (already in [`lscc/osc0/`](lscc/osc0/); only needed to regenerate it):
+1. **Oscillator IP** (already in [`src/ip/osc0/`](src/ip/osc0/); only needed to regenerate it):
    `radiant_ip_generate(name=osc0, ip_module_dir=/mnt/tools/lscc/radiant/2026.1.1/ip/lifcl/osc,
    device=LFD2NX-40, family=LFD2NX, package=CABGA196, performance=8_High-Performance_1.0V,
-   operation=Commercial, output_dir=<project>/lscc/osc0,
+   operation=Commercial, output_dir=<project>/src/ip/osc0,
    cfg_values="HF_OSC_EN:ENABLED; HF_CLK_FREQ:25; LF_OUTPUT_EN:DISABLED; SEDCLK_EN:0; LMMI_CLK_EN:ENABLED")`.
 2. **Project** (already in [`lscc/nexus_reconfig.rdf`](lscc/nexus_reconfig.rdf); only needed to re-create it):
    `radiant_build_detached(tcl_path=<project>/scripts/create_project.tcl)` ([`scripts/create_project.tcl`](scripts/create_project.tcl)). The tool reports
@@ -258,7 +258,7 @@ The resource and slack differences come from synthesis packing the two message R
 
 ### Testbenches
 
-[`tb/tb_reconfig_core.vhd`](tb/tb_reconfig_core.vhd) is a conversion of [`tb/tb_reconfig_core.sv`](tb/tb_reconfig_core.sv). It has the same three DUT instances, stimulus, LMMI target model, UART monitors, the
+[`src/tb/tb_reconfig_core.vhd`](src/tb/tb_reconfig_core.vhd) is a conversion of [`src/tb/tb_reconfig_core.sv`](src/tb/tb_reconfig_core.sv). It has the same three DUT instances, stimulus, LMMI target model, UART monitors, the
 same 12 final checks and the same checks during the run. Differences:
 
 - The LMMI back-pressure uses `ieee.math_real.uniform` instead of `$urandom`, so the ready pattern,
@@ -268,7 +268,7 @@ same 12 final checks and the same checks during the run. Differences:
   entity and the SystemVerilog module. The SystemVerilog testbench uses only the DUT ports, so
   it also runs against either implementation.
 
-Fault injection ([`scripts/make_tb_check.sh`](scripts/make_tb_check.sh)): each mutant is a copy of [`src/vhdl/*.vhd`](src/vhdl/) with one fault.
+Fault injection ([`scripts/make_tb_check.sh`](scripts/make_tb_check.sh)): each mutant is a copy of [`src/rtl/vhdl/*.vhd`](src/rtl/vhdl/) with one fault.
 Both testbenches were run on every mutant (2026-11-13, repeated with the same results on 2026-11-14 after the restructuring):
 
 | Mutant | Fault | VHDL testbench | SystemVerilog testbench |
@@ -288,8 +288,8 @@ request, and the check "LMMI request before the UART message completed" cannot f
 - The VHDL-2008 implementation is a conversion of the SystemVerilog original. One VHDL entity per SystemVerilog module, with the same names, generics and ports. The
   generics are `positive`/`natural`, apart from `LED_ACTIVE_LOW` (`boolean`). The ports are
   `std_logic` / `std_logic_vector`. The SystemVerilog `$clog2` and the packed message strings are
-  replaced by `clog2` and `to_rom` in [`nexus_reconfig_pkg`](src/vhdl/nexus_reconfig_pkg.vhd).
-- [`nexus_reconfig_top.vhd`](src/vhdl/nexus_reconfig_top.vhd) declares the OSC IP (Verilog, mixed-language) and `CONFIG_LMMI` as
+  replaced by `clog2` and `to_rom` in [`nexus_reconfig_pkg`](src/rtl/vhdl/nexus_reconfig_pkg.vhd).
+- [`nexus_reconfig_top.vhd`](src/rtl/vhdl/nexus_reconfig_top.vhd) declares the OSC IP (Verilog, mixed-language) and `CONFIG_LMMI` as
   components. The `CONFIG_LMMI` declaration is copied from the Radiant library
   (`cae_library/synthesis/vhdl/lfd2nx.vhd`). A local declaration is used because the
   precompiled Questa library `lfd2nx` holds only the Verilog cells, not a VHDL `components`
@@ -335,11 +335,11 @@ What it does not cover:
 ### Known build warnings (reviewed, harmless)
 
 - `The clock sys_clk has been defined multiple times` / `Cannot have multiple create_clock ...`:
-  synthesis exports the [`.sdc`](constraints/nexus_reconfig.sdc) clock into the implementation constraints; the identical [`.pdc`](constraints/nexus_reconfig.pdc)
+  synthesis exports the [`.sdc`](src/cst/nexus_reconfig.sdc) clock into the implementation constraints; the identical [`.pdc`](src/cst/nexus_reconfig.pdc)
   definition is the one that is used (timing report section 1.1).
 - `nexus_reconfig.sdc (2): Can't resolve object .../gen_osca.u_OSC_A/HFCLKOUT`: the RTL pin name is
   valid in synthesis (the Synplify report shows `sys_clk` declared at 25 MHz), but not in the
-  post-synthesis netlist, where the [`.pdc`](constraints/nexus_reconfig.pdc) uses `.../gen_osca.u_OSC_A.OSCA_inst/HFCLKOUT`.
+  post-synthesis netlist, where the [`.pdc`](src/cst/nexus_reconfig.pdc) uses `.../gen_osca.u_OSC_A.OSCA_inst/HFCLKOUT`.
 - `Clock osc0_inst_hf_clk_out_o is overridden ... by clock sys_clk`: the OSC IP's own constraint is
   replaced by the project's `sys_clk`.
 - A clock `osc0_inst/lscc_osc_inst/sed_sec_out_w` (225 MHz on `HFSDCOUT`) appears in the timing

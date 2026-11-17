@@ -3,9 +3,9 @@
 //
 // Lock-step equivalence check of the two implementations of the design:
 //
-//   ref_reconfig_core  SystemVerilog sources in src/sv/, with the module names
+//   ref_reconfig_core  SystemVerilog sources in src/rtl/sv/, with the module names
 //                      prefixed by ref_ (scripts/make_sv_ref.sh)
-//   reconfig_core      VHDL-2008 sources in src/vhdl/
+//   reconfig_core      VHDL-2008 sources in src/rtl/vhdl/
 //
 // Each equiv_pair instance drives both implementations with the same button
 // and LMMI-ready stimulus and compares every output on every clock cycle. The
