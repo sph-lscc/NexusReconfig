@@ -131,34 +131,34 @@ in `lscc/impl_<L>/nexus_reconfig_impl_<L>.vm`, which is what map reads.
 
 ## Contents
 
-| Path | Content |
-| :-- | :-- |
-| [`src/rtl/sv/nexus_reconfig_top.sv`](src/rtl/sv/nexus_reconfig_top.sv), [`src/rtl/vhdl/nexus_reconfig_top.vhd`](src/rtl/vhdl/nexus_reconfig_top.vhd) | Top level: OSC IP, `CONFIG_LMMI` primitive (with `syn_noprune` and `NOCLIP`), `reconfig_core` |
-| [`src/rtl/sv/reconfig_core.sv`](src/rtl/sv/reconfig_core.sv), [`src/rtl/vhdl/reconfig_core.vhd`](src/rtl/vhdl/reconfig_core.vhd) | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
-| [`src/rtl/sv/lmmi_refresh.sv`](src/rtl/sv/lmmi_refresh.sv), [`src/rtl/vhdl/lmmi_refresh.vhd`](src/rtl/vhdl/lmmi_refresh.vhd) | LMMI host that writes `LSC_REFRESH` |
-| [`src/rtl/sv/uart_tx.sv`](src/rtl/sv/uart_tx.sv), [`src/rtl/vhdl/uart_tx.vhd`](src/rtl/vhdl/uart_tx.vhd) | UART transmitter, 8N1 |
-| [`src/rtl/vhdl/nexus_reconfig_pkg.vhd`](src/rtl/vhdl/nexus_reconfig_pkg.vhd) | VHDL only: `clog2` and string-to-ROM helper functions |
-| [`src/ip/osc0/`](src/ip/osc0/) | Generated OSC IP (25 MHz HF clock, LMMI clock path enabled), used by both implementations |
-| [`lscc/nexus_reconfig.rdf`](lscc/nexus_reconfig.rdf) | Radiant project with the implementations `impl_sv` (default) and `impl_vhdl` |
-| [`lscc/nexus_reconfig_*_{sv,vhdl}_ftusb0.xcf`](lscc/) | Programmer chain files per implementation (see "Running on the board") |
-| [`src/cst/nexus_reconfig.pdc`](src/cst/nexus_reconfig.pdc) | Clock, pins, INITN release, false paths (post-synthesis) |
-| [`src/cst/nexus_reconfig.sdc`](src/cst/nexus_reconfig.sdc) | Clock for synthesis |
-| [`src/tb/tb_reconfig_core.sv`](src/tb/tb_reconfig_core.sv) | Self-checking SystemVerilog testbench with an LMMI target model and UART monitors (ports only: runs against either implementation) |
-| [`src/tb/tb_reconfig_core.vhd`](src/tb/tb_reconfig_core.vhd) | The same testbench in VHDL-2008 (ports only, component binding: runs against either implementation) |
-| [`src/tb/tb_equiv.sv`](src/tb/tb_equiv.sv) | Lock-step equivalence testbench: VHDL-2008 against SystemVerilog |
-| [`sim/sim_sv_filelist.f`](sim/sim_sv_filelist.f) | SystemVerilog design, SystemVerilog testbench |
-| [`sim/sim_vhdl_filelist.f`](sim/sim_vhdl_filelist.f) | VHDL design, VHDL testbench |
-| [`sim/sim_sv_vhdtb_filelist.f`](sim/sim_sv_vhdtb_filelist.f) | SystemVerilog design, VHDL testbench |
-| [`sim/sim_vhdl_svtb_filelist.f`](sim/sim_vhdl_svtb_filelist.f) | VHDL design, SystemVerilog testbench |
-| [`sim/equiv_filelist.f`](sim/equiv_filelist.f) | `tb_equiv` with both implementations |
-| [`sim/lint_top_sv_filelist.f`](sim/lint_top_sv_filelist.f), [`sim/lint_top_vhdl_filelist.f`](sim/lint_top_vhdl_filelist.f) | Elaborate-only check of the full top level, per implementation |
-| [`sim/run_vhdl.do`](sim/run_vhdl.do) | Questa run script for the simulations with VHDL design units |
-| [`scripts/create_project.tcl`](scripts/create_project.tcl) | Re-creates the Radiant project with both implementations (VHDL-2008 enabled for Synplify Pro and LSE) |
-| [`scripts/build_all.tcl`](scripts/build_all.tcl) | Builds both implementations |
-| [`scripts/make_sv_ref.sh`](scripts/make_sv_ref.sh) | Copies [`src/rtl/sv/`](src/rtl/sv/) with `ref_` module names into `sim/mcp_sim/sv_ref/` for `tb_equiv` |
-| [`scripts/make_tb_check.sh`](scripts/make_tb_check.sh) | Prepares the fault-injection check of both testbenches in `sim/mcp_sim/tb_check/` |
-| [`logs/`](logs/) | Programmer logs and raw UART captures of the hardware tests |
-| [`docs/`](docs/) | FPGA-TN-02099 ([`sysCONFIG`](docs/FPGA-TN-02099-sysCONFIG-User-Guide-Nexus.pdf)) and FPGA-TN-02145 ([`Multi-Boot`](docs/FPGA-TN-02145-Multi-Boot-User-Guide-Nexus.pdf)) user guides, block diagram ([`block_diagram.svg`](docs/block_diagram.svg)) |
+| Type | Path | Content |
+| :-- | :-- | :-- |
+| RTL | [`src/rtl/sv/nexus_reconfig_top.sv`](src/rtl/sv/nexus_reconfig_top.sv), [`src/rtl/vhdl/nexus_reconfig_top.vhd`](src/rtl/vhdl/nexus_reconfig_top.vhd) | Top level: OSC IP, `CONFIG_LMMI` primitive (with `syn_noprune` and `NOCLIP`), `reconfig_core` |
+| RTL | [`src/rtl/sv/reconfig_core.sv`](src/rtl/sv/reconfig_core.sv), [`src/rtl/vhdl/reconfig_core.vhd`](src/rtl/vhdl/reconfig_core.vhd) | Power-on reset, button debounce, auto timer, UART messages, LEDs, sequencer |
+| RTL | [`src/rtl/sv/lmmi_refresh.sv`](src/rtl/sv/lmmi_refresh.sv), [`src/rtl/vhdl/lmmi_refresh.vhd`](src/rtl/vhdl/lmmi_refresh.vhd) | LMMI host that writes `LSC_REFRESH` |
+| RTL | [`src/rtl/sv/uart_tx.sv`](src/rtl/sv/uart_tx.sv), [`src/rtl/vhdl/uart_tx.vhd`](src/rtl/vhdl/uart_tx.vhd) | UART transmitter, 8N1 |
+| RTL | [`src/rtl/vhdl/nexus_reconfig_pkg.vhd`](src/rtl/vhdl/nexus_reconfig_pkg.vhd) | VHDL only: `clog2` and string-to-ROM helper functions |
+| IP | [`src/ip/osc0/`](src/ip/osc0/) | Generated OSC IP (25 MHz HF clock, LMMI clock path enabled), used by both implementations |
+| Constraint | [`src/cst/nexus_reconfig.pdc`](src/cst/nexus_reconfig.pdc) | Clock, pins, INITN release, false paths (post-synthesis) |
+| Constraint | [`src/cst/nexus_reconfig.sdc`](src/cst/nexus_reconfig.sdc) | Clock for synthesis |
+| Testbench | [`src/tb/tb_reconfig_core.sv`](src/tb/tb_reconfig_core.sv) | Self-checking SystemVerilog testbench with an LMMI target model and UART monitors (ports only: runs against either implementation) |
+| Testbench | [`src/tb/tb_reconfig_core.vhd`](src/tb/tb_reconfig_core.vhd) | The same testbench in VHDL-2008 (ports only, component binding: runs against either implementation) |
+| Testbench | [`src/tb/tb_equiv.sv`](src/tb/tb_equiv.sv) | Lock-step equivalence testbench: VHDL-2008 against SystemVerilog |
+| Implementation | [`lscc/nexus_reconfig.rdf`](lscc/nexus_reconfig.rdf) | Radiant project with the implementations `impl_sv` (default) and `impl_vhdl` |
+| Implementation | [`lscc/nexus_reconfig_*_{sv,vhdl}_ftusb0.xcf`](lscc/) | Programmer chain files per implementation (see "Running on the board") |
+| Simulation | [`sim/sim_sv_filelist.f`](sim/sim_sv_filelist.f) | SystemVerilog design, SystemVerilog testbench |
+| Simulation | [`sim/sim_vhdl_filelist.f`](sim/sim_vhdl_filelist.f) | VHDL design, VHDL testbench |
+| Simulation | [`sim/sim_sv_vhdtb_filelist.f`](sim/sim_sv_vhdtb_filelist.f) | SystemVerilog design, VHDL testbench |
+| Simulation | [`sim/sim_vhdl_svtb_filelist.f`](sim/sim_vhdl_svtb_filelist.f) | VHDL design, SystemVerilog testbench |
+| Simulation | [`sim/equiv_filelist.f`](sim/equiv_filelist.f) | `tb_equiv` with both implementations |
+| Simulation | [`sim/lint_top_sv_filelist.f`](sim/lint_top_sv_filelist.f), [`sim/lint_top_vhdl_filelist.f`](sim/lint_top_vhdl_filelist.f) | Elaborate-only check of the full top level, per implementation |
+| Simulation | [`sim/run_vhdl.do`](sim/run_vhdl.do) | Questa run script for the simulations with VHDL design units |
+| Script | [`scripts/create_project.tcl`](scripts/create_project.tcl) | Re-creates the Radiant project with both implementations (VHDL-2008 enabled for Synplify Pro and LSE) |
+| Script | [`scripts/build_all.tcl`](scripts/build_all.tcl) | Builds both implementations |
+| Script | [`scripts/make_sv_ref.sh`](scripts/make_sv_ref.sh) | Copies [`src/rtl/sv/`](src/rtl/sv/) with `ref_` module names into `sim/mcp_sim/sv_ref/` for `tb_equiv` |
+| Script | [`scripts/make_tb_check.sh`](scripts/make_tb_check.sh) | Prepares the fault-injection check of both testbenches in `sim/mcp_sim/tb_check/` |
+| Log | [`logs/`](logs/) | Programmer logs and raw UART captures of the hardware tests |
+| Documentation | [`docs/`](docs/) | FPGA-TN-02099 ([`sysCONFIG`](docs/FPGA-TN-02099-sysCONFIG-User-Guide-Nexus.pdf)) and FPGA-TN-02145 ([`Multi-Boot`](docs/FPGA-TN-02145-Multi-Boot-User-Guide-Nexus.pdf)) user guides, block diagram ([`block_diagram.svg`](docs/block_diagram.svg)) |
 
 ### Ports and pins
 
