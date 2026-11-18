@@ -119,10 +119,8 @@ build, check `Number of Config LMMI: 1 out of 1` in `lscc/impl_<L>/nexus_reconfi
 | `led_o[1]` | B8 | out | 2 Hz heartbeat |
 | `txd_o` | F11 | out | UART, 115200 baud, 8N1 |
 
-Pins come from the CRUVI board design
-(`/mnt/lscc/devel/Boards/CertusNX/cruvi/CruviDemo/test_certus/test_certus.pdc`). B2 is the INITN
-sysCONFIG pin; the [`.pdc`](src/cst/nexus_reconfig.pdc) releases it with
-`ldc_set_sysconfig {INITN_PORT=DISABLE}`.
+Pins come from the CRUVI board's own demonstration design. B2 is the INITN sysCONFIG pin; the
+[`.pdc`](src/cst/nexus_reconfig.pdc) releases it with `ldc_set_sysconfig {INITN_PORT=DISABLE}`.
 
 ### Parameters (`nexus_reconfig_top`)
 
@@ -133,51 +131,51 @@ sysCONFIG pin; the [`.pdc`](src/cst/nexus_reconfig.pdc) releases it with
 
 ## Reproducing the results
 
-All Lattice tools run on the build host `lb` with Radiant 2026.1.1, through the `lattice-prompt`
-MCP server. `<project>` is the repository root.
+Tools: Lattice Radiant 2026.1.1 (with Synplify Pro and the bundled Questa) and Radiant
+Programmer. `<radiant>` is the Radiant installation folder. Run the commands from the repository
+root.
 
 1. **Oscillator IP** (already in [`src/ip/osc0/`](src/ip/osc0/); only needed to regenerate it):
-   `radiant_ip_generate(name=osc0, ip_module_dir=/mnt/tools/lscc/radiant/2026.1.1/ip/lifcl/osc,
-   device=LFD2NX-40, family=LFD2NX, package=CABGA196, performance=8_High-Performance_1.0V,
-   operation=Commercial, output_dir=<project>/src/ip/osc0,
-   cfg_values="HF_OSC_EN:ENABLED; HF_CLK_FREQ:25; LF_OUTPUT_EN:DISABLED; SEDCLK_EN:0; LMMI_CLK_EN:ENABLED")`.
-2. **Project** (already in [`lscc/nexus_reconfig.rdf`](lscc/nexus_reconfig.rdf); only needed to re-create it):
-   `radiant_build_detached(tcl_path=<project>/scripts/create_project.tcl)`. The tool reports
-   `failed` because no build stage runs; check that the `.rdf` lists `impl_sv` and `impl_vhdl`.
-3. **Build both implementations:** `radiant_build_detached(tcl_path=<project>/scripts/build_all.tcl)`,
-   `radiant_build_wait(project_dir=<project>/scripts)`, then `validate_timing` on
-   `<project>/lscc/impl_sv` and `<project>/lscc/impl_vhdl`. The bitstreams are
-   `lscc/impl_<L>/nexus_reconfig_impl_<L>.bit` (`<L>` = `sv` or `vhdl`). Use
-   [`build_all.tcl`](scripts/build_all.tcl), not `rdf_path` with `impl`: the MCP tool builds
-   only the default implementation.
-4. **RTL simulation:**
-   `simulate_rtl_detached(work_dir=<project>/sim/mcp_sim/<run>, sim_dir=<project>/sim/mcp_sim/<run>/system_sim,
-   device=LFD2NX-40-8BG196C, sim_filelist=<project>/sim/<list>, top=tb_reconfig_core,
-   skip_validate=true, clean=true)`, then `simulate_rtl_wait`, for each `<list>` / `<run>`:
-   [`sim_sv_filelist.f`](sim/sim_sv_filelist.f) / `sv`, [`sim_vhdl_filelist.f`](sim/sim_vhdl_filelist.f) / `vhdl`,
-   [`sim_sv_vhdtb_filelist.f`](sim/sim_sv_vhdtb_filelist.f) / `sv_vhdtb`,
-   [`sim_vhdl_svtb_filelist.f`](sim/sim_vhdl_svtb_filelist.f) / `vhdl_svtb`. Pass: `TEST PASSED` in `sim.log`.
-5. **Equivalence:** run [`scripts/make_sv_ref.sh`](scripts/make_sv_ref.sh), then as step 4 with
-   `sim_filelist=<project>/sim/equiv_filelist.f`, `top=tb_equiv`, `<run>=equiv` and
-   `libdirs=[/mnt/tools/lscc/radiant/2026.1.1/cae_library/simulation/verilog/uaplatform]`.
-   Pass: `TEST PASSED: VHDL-2008 and SystemVerilog implementations match cycle for cycle`.
+   in the Radiant IP Catalog, Module OSC 1.4.0 for LFD2NX-40-8BG196C, named `osc0`, output folder
+   `src/ip/osc0`, with HF oscillator enabled at 25 MHz, LF output disabled, SED clock disabled and
+   LMMI clock enabled (`HF_OSC_EN:ENABLED; HF_CLK_FREQ:25; LF_OUTPUT_EN:DISABLED; SEDCLK_EN:0;
+   LMMI_CLK_EN:ENABLED`).
+2. **Project** (already in [`lscc/nexus_reconfig.rdf`](lscc/nexus_reconfig.rdf); only needed to
+   re-create it): `radiantc scripts/create_project.tcl`
+   ([`create_project.tcl`](scripts/create_project.tcl); use `pnmainc` on a Linux host without a
+   display).
+3. **Build both implementations:** `radiantc scripts/build_all.tcl`
+   ([`build_all.tcl`](scripts/build_all.tcl)). The `prj_run_*` commands act only on the active
+   implementation, so the script activates `impl_sv` and `impl_vhdl` in turn. The bitstreams are
+   `lscc/impl_<L>/nexus_reconfig_impl_<L>.bit` (`<L>` = `sv` or `vhdl`). Check that the timing
+   reports (`lscc/impl_<L>/nexus_reconfig_impl_<L>.twr`) have no failing endpoints and that the map
+   reports (`.mrp`) show `Number of Config LMMI: 1 out of 1`.
+4. **RTL simulation** with Questa, one run per file list, top level `tb_reconfig_core`:
+   [`sim_sv_filelist.f`](sim/sim_sv_filelist.f), [`sim_vhdl_filelist.f`](sim/sim_vhdl_filelist.f),
+   [`sim_sv_vhdtb_filelist.f`](sim/sim_sv_vhdtb_filelist.f) and
+   [`sim_vhdl_svtb_filelist.f`](sim/sim_vhdl_svtb_filelist.f). Pass: `TEST PASSED`. The file
+   lists hold absolute paths and the Questa options each run needs (VHDL-2008, `-t 1ps` for a VHDL
+   top level, [`run_vhdl.do`](sim/run_vhdl.do)); adjust the paths to the location of the
+   repository.
+5. **Equivalence:** run [`scripts/make_sv_ref.sh`](scripts/make_sv_ref.sh), then simulate
+   [`equiv_filelist.f`](sim/equiv_filelist.f) with top level `tb_equiv` and the library folder
+   `<radiant>/cae_library/simulation/verilog/uaplatform`. Pass:
+   `TEST PASSED: VHDL-2008 and SystemVerilog implementations match cycle for cycle`.
 6. **Fault injection (optional):** run [`scripts/make_tb_check.sh`](scripts/make_tb_check.sh), then
-   for each `sim/mcp_sim/tb_check/<m>_vhdtb.f` and `<m>_svtb.f` run as step 4 with its own
-   `work_dir`/`sim_dir`. Expected results are in
-   [`docs/development_notes.md`](docs/development_notes.md).
-7. **Full top-level elaboration:** as step 5 with
-   [`lint_top_sv_filelist.f`](sim/lint_top_sv_filelist.f) (`<run>=lint_sv`) and
-   [`lint_top_vhdl_filelist.f`](sim/lint_top_vhdl_filelist.f) (`<run>=lint_vhdl`),
-   `top=nexus_reconfig_top` and `elaborate_only=true`. Pass: 0 errors.
+   simulate each `sim/mcp_sim/tb_check/<m>_vhdtb.f` and `<m>_svtb.f` as in step 4. Expected
+   results are in [`docs/development_notes.md`](docs/development_notes.md).
+7. **Full top-level elaboration:** elaborate [`lint_top_sv_filelist.f`](sim/lint_top_sv_filelist.f)
+   and [`lint_top_vhdl_filelist.f`](sim/lint_top_vhdl_filelist.f) with top level
+   `nexus_reconfig_top`, the precompiled Radiant device library `lfd2nx` and the `uaplatform`
+   folder as in step 5. Pass: 0 errors.
 
 ## Running on the board
 
 `LSC_REFRESH` reloads the configuration from the SPI flash, so the result depends on what the
-flash holds. The board's FT2232H (USB serial `FT7BCWYB`) provides JTAG on channel A (`FTUSB-0`
-when only this board is attached) and the UART on channel B.
+flash holds. The board's FT2232H provides JTAG on channel A and the UART on channel B.
 
 Chain files in [`lscc/`](lscc/), one set per implementation (`<L>` = `sv` or `vhdl`, using
-`lscc/impl_<L>/nexus_reconfig_impl_<L>.bit`):
+`lscc/impl_<L>/nexus_reconfig_impl_<L>.bit`), for cable port `FTUSB-0`:
 
 | File | Operation |
 | :-- | :-- |
@@ -186,21 +184,21 @@ Chain files in [`lscc/`](lscc/), one set per implementation (`<L>` = `sv` or `vh
 | `nexus_reconfig_spiflash_<L>_ftusb0.xcf`: [`sv`](lscc/nexus_reconfig_spiflash_sv_ftusb0.xcf), [`vhdl`](lscc/nexus_reconfig_spiflash_vhdl_ftusb0.xcf) | External SPI flash: Erase, Program, Verify through the FPGA loader (JTAG2SPI) |
 | `nexus_reconfig_refresh_<L>_ftusb0.xcf`: [`sv`](lscc/nexus_reconfig_refresh_sv_ftusb0.xcf), [`vhdl`](lscc/nexus_reconfig_refresh_vhdl_ftusb0.xcf) | JTAG Refresh: reload the configuration from the SPI flash |
 
-The bitstream sizes are in the SPI flash chain files (`DataSize`); update them after a rebuild
-that changes the size.
+The port number depends on the cables attached; change it in the chain file if the board is not
+on `FTUSB-0`. The bitstream sizes are in the SPI flash chain files (`DataSize`); update them after
+a rebuild that changes the size.
 
-Procedure, with `radiant_program(..., force=True)` on `lb` (the verdict is
-`Operation: successful.` in `~/.config/LatticeSemi/DiamondNG/programmer.log`):
+Procedure, with Radiant Programmer (GUI, or `pgrcmd -infile <chain file>`):
 
 1. Verify ID with `nexus_reconfig_verifyid_<L>_ftusb0.xcf`.
 2. Program the flash with `nexus_reconfig_spiflash_<L>_ftusb0.xcf` (Erase, Program, Verify).
-3. Start the design from the flash: `nexus_reconfig_refresh_<L>_ftusb0.xcf` or a power cycle.
-4. Capture the UART on `lb`:
-   `python3 /mnt/lscc/devel/Claude/Cruvi/scripts/uart_capture.py --serial FT7BCWYB --interface B --baud 115200 --seconds 45`.
+3. Open a serial terminal on the board's channel B port at 115200 baud, 8N1.
+4. Start the design from the flash: `nexus_reconfig_refresh_<L>_ftusb0.xcf` or a power cycle.
    Expected: the banner and `issuing LSC_REFRESH` repeating every 10 s.
 
-To see the banner of an SRAM load, start the UART capture first and load with
-`pgrcmd -infile <chain file>` (`/mnt/tools/lscc/radiant/2026.1.1/programmer/bin/lin64`).
+To see the design refresh into a different image, load it into SRAM with
+`nexus_reconfig_sram_<L>_ftusb0.xcf` while another design is in the flash: after the refresh,
+the flash design starts.
 
 ## References
 
@@ -209,7 +207,6 @@ To see the banner of an SRAM load, start the UART capture first and load with
   Table 6.20, Table D.3.
 - Multi-Boot User Guide for Nexus Platform, FPGA-TN-02145
   ([`docs/FPGA-TN-02145-Multi-Boot-User-Guide-Nexus.pdf`](docs/FPGA-TN-02145-Multi-Boot-User-Guide-Nexus.pdf)).
-- Lattice Nexus Device Multi-Boot Reference Design, FPGA-RD-02294
-  (`/mnt/lscc/reference/designs/FPGA-RD-02294-Lattice-Nexus-Device-Multi-Boot-RD-Source-RevA-241006`).
+- Lattice Nexus Device Multi-Boot Reference Design, FPGA-RD-02294.
 - Radiant 2026.1.1 help, FPGA Libraries Reference Guide, CONFIG_LMMI (architectures supported:
   LFD2NX).

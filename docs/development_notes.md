@@ -3,6 +3,103 @@
 Test results, issues found during development and open items for the NexusReconfig design.
 What the design contains and how to rebuild it are in the [Readme](../Readme.md).
 
+> **Note:** this document records how the design was developed and tested, and may contain
+> references to the internal development environment: the build host `lb`, paths under
+> `/mnt/lscc` and `/mnt/tools`, the `lattice-prompt` MCP server and its tool calls, and the
+> serial number of the test board. These are not needed to use or rebuild the design.
+
+## Design details
+
+### LMMI protocol
+
+From the sysCONFIG User Guide for Nexus Platform, FPGA-TN-02099-3.7, Appendix D:
+
+- The configuration register has the fixed LMMI offset `ADDR_CFG = 0x01` (D.3).
+- A command is an opcode byte and three operand bytes, written back to back with
+  `LMMIREQUEST` and `LMMIWRRD_N` high; a byte is taken on each clock edge where `LMMIREADY` is
+  high (Figures D.4 to D.6).
+- `LSC_REFRESH` is the only Class D command and is executed as a Class C command (no data, no
+  read-back). Once it executes, the LMMI host in the fabric no longer exists (D.3).
+- `OPERAND1 = 0x00` leaves the Override ENABLE bit (bit 6) clear, so the refresh uses the
+  device's normal boot settings (Table 6.20).
+- Wait at least four LMMI clock cycles after `LMMIREADY` is high before issuing a command (D.3);
+  the design waits for 16.
+- `LMMICLK` is at most 50 MHz (Table D.1). `LMMICLK` and `LMMIRESETN` must come from the OSC IP's
+  `lmmi_clk_o` / `lmmi_resetn_o` pass-through outputs, or the software stops with an error (D.2).
+- `RSTSMCLK` and `SMCLK` are hardware inferred and left unconnected, as in FPGA-RD-02294.
+
+The command sequence is the `LSC_REFRESH` step of the refresh controller in FPGA-RD-02294
+(`/mnt/lscc/reference/designs/FPGA-RD-02294-Lattice-Nexus-Device-Multi-Boot-RD-Source-RevA-241006`,
+`source/impl_1/refresh.v`), without its Multi-Boot steps (`ISC_ENABLE_X`, `LSC_PROG_CNTRL0`,
+`ISC_DISABLE` and the `MULTIBOOT` primitive), which are only needed to select an alternate image.
+
+The button input must be seen released before a press counts, so a stuck-low input cannot cause
+a refresh loop.
+
+### When `NOCLIP` is needed
+
+Map removes every path that does not run from a valid input to a valid output (an output pad or a
+net with `NOCLIP`). Without a device output that depends on the refresh logic, the path
+oscillator, `reconfig_core`, `CONFIG_LMMI`, `LMMIREADY` back to `reconfig_core` is a closed loop
+with no valid output, and map removes it. `LSC_REFRESH` has an effect on the device, but not one
+the tools can see. Typical cases:
+
+- the refresh logic has no status outputs at all (no UART, no LEDs driven by the sequencer),
+  for example when the only output is an LED flasher with no connection to the refresh logic;
+- the only outputs that depend on the refresh logic are removed later, for example a debug UART
+  taken out of a production build;
+- the `CONFIG_LMMI` read data (`LMMIRDATA`, `LMMIRDATAVALID`) is used only inside a loop that
+  never reaches a pin.
+
+### Pin source
+
+The pins come from the CRUVI board design
+`/mnt/lscc/devel/Boards/CertusNX/cruvi/CruviDemo/test_certus/test_certus.pdc` (which names B2
+`rstn_i`).
+
+## Development environment
+
+### Build and simulation through the `lattice-prompt` MCP server
+
+All Lattice tools ran on the build host `lb` with Radiant 2026.1.1. `<project>` is
+`/mnt/lscc/devel/Claude/NexusReconfig`.
+
+1. Oscillator IP: `radiant_ip_generate(name=osc0, ip_module_dir=/mnt/tools/lscc/radiant/2026.1.1/ip/lifcl/osc,
+   device=LFD2NX-40, family=LFD2NX, package=CABGA196, performance=8_High-Performance_1.0V,
+   operation=Commercial, output_dir=<project>/src/ip/osc0,
+   cfg_values="HF_OSC_EN:ENABLED; HF_CLK_FREQ:25; LF_OUTPUT_EN:DISABLED; SEDCLK_EN:0; LMMI_CLK_EN:ENABLED")`.
+2. Project: `radiant_build_detached(tcl_path=<project>/scripts/create_project.tcl)`. The tool
+   reports `failed` because no build stage runs.
+3. Build: `radiant_build_detached(tcl_path=<project>/scripts/build_all.tcl)`,
+   `radiant_build_wait(project_dir=<project>/scripts)`, then `validate_timing` on
+   `<project>/lscc/impl_sv` and `<project>/lscc/impl_vhdl`.
+4. RTL simulation: `simulate_rtl_detached(work_dir=<project>/sim/mcp_sim/<run>,
+   sim_dir=<project>/sim/mcp_sim/<run>/system_sim, device=LFD2NX-40-8BG196C,
+   sim_filelist=<project>/sim/<list>, top=tb_reconfig_core, skip_validate=true, clean=true)`, then
+   `simulate_rtl_wait`, for `<list>` / `<run>`: `sim_sv_filelist.f` / `sv`,
+   `sim_vhdl_filelist.f` / `vhdl`, `sim_sv_vhdtb_filelist.f` / `sv_vhdtb`,
+   `sim_vhdl_svtb_filelist.f` / `vhdl_svtb`. The MCP tool needs absolute paths in the file lists.
+5. Equivalence: as step 4 with `sim_filelist=<project>/sim/equiv_filelist.f`, `top=tb_equiv`,
+   `<run>=equiv` and
+   `libdirs=[/mnt/tools/lscc/radiant/2026.1.1/cae_library/simulation/verilog/uaplatform]`.
+6. Fault injection: for each `sim/mcp_sim/tb_check/<m>_vhdtb.f` and `<m>_svtb.f`, as step 4 with
+   its own `work_dir`/`sim_dir` (for example `sim/mcp_sim/tb_check/run_<m>_<tb>`).
+7. Top-level elaboration: as step 5 with `lint_top_sv_filelist.f` (`<run>=lint_sv`) and
+   `lint_top_vhdl_filelist.f` (`<run>=lint_vhdl`), `top=nexus_reconfig_top` and
+   `elaborate_only=true`.
+
+### Board access
+
+- The CRUVI board's FT2232H has USB serial `FT7BCWYB`; channel A (JTAG) was `FTUSB-0` with only
+  this board attached, channel B is the UART. The JTAG cables are attached to `lb`.
+- Programming used `radiant_program(..., force=True)` on `lb`; the verdict is
+  `Operation: successful.` in `~/.config/LatticeSemi/DiamondNG/programmer.log` on `lb`. Flash
+  programming takes about 10 s, and the FPGA does not restart by itself afterwards.
+- SRAM loads with the boot banner captured used
+  `/mnt/tools/lscc/radiant/2026.1.1/programmer/bin/lin64/pgrcmd -infile <chain file>`.
+- UART capture on `lb`:
+  `python3 /mnt/lscc/devel/Claude/Cruvi/scripts/uart_capture.py --serial FT7BCWYB --interface B --baud 115200 --seconds 45`.
+
 ## Verification results (2026-11-14, Radiant 2026.1.1)
 
 | Check | SystemVerilog (`impl_sv`) | VHDL-2008 (`impl_vhdl`) |
