@@ -6,7 +6,7 @@
 #   <m>_vhdtb.f           VHDL testbench (src/tb/tb_reconfig_core.vhd) on mutant <m>
 #   <m>_svtb.f            SystemVerilog testbench (src/tb/tb_reconfig_core.sv) on <m>
 # Both testbenches must report TEST FAILED on mutants m1, m2 and m4, with the
-# same checks (m3_nodrain is a known coverage gap of both, see Readme).
+# same checks (m3_nodrain is a known coverage gap of both, see docs/development_notes.md).
 # Usage: scripts/make_tb_check.sh
 # -----------------------------------------------------------------------------
 set -eu
